@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resume-tracker-v7';
+const CACHE_NAME = 'resume-tracker-v8';
 const ASSETS = [
   './index.html',
   './css/style.css',
@@ -27,22 +27,37 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+function shouldNetworkFirst(request) {
+  const path = new URL(request.url).pathname;
+  return (
+    request.mode === 'navigate' ||
+    path.endsWith('.html') ||
+    path.endsWith('.css') ||
+    path.endsWith('.js') ||
+    path.endsWith('.webmanifest')
+  );
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (!event.request.url.startsWith(self.location.origin)) return;
 
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match('./index.html'))
-    );
+  if (shouldNetworkFirst(event.request)) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
-
       return fetch(event.request).then((response) => {
-        if (response.ok && event.request.url.startsWith(self.location.origin)) {
+        if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
@@ -51,3 +66,21 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (request.mode === 'navigate') {
+      return caches.match('./index.html');
+    }
+    throw new Error('Network error and no cache');
+  }
+}

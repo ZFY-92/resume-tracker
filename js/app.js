@@ -628,6 +628,8 @@ function renderCalendarSidebar() {
 function renderSettingsPage() {
   const countEl = $('#settingsRecordCount');
   if (countEl) countEl.textContent = String(applications.length);
+  const versionEl = $('#appVersion');
+  if (versionEl) versionEl.textContent = window.APP_VERSION || 'v8';
   updateNotifyButton();
   updateThemeButton(document.documentElement.getAttribute('data-theme') || 'light');
 }
