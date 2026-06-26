@@ -29,6 +29,7 @@ let applications = [];
 let filterStatus = 'all';
 let searchQuery = '';
 let deleteTargetId = null;
+let detailTargetId = null;
 let currentPage = 'home';
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
@@ -270,9 +271,7 @@ function renderRemindersPanel() {
 
   panel.innerHTML = sections.join('');
 
-  panel.querySelectorAll('.btn-edit').forEach((btn) => {
-    btn.addEventListener('click', () => openForm(btn.dataset.id));
-  });
+  bindDetailTriggers(panel);
 }
 
 function parseRoute() {
@@ -468,7 +467,7 @@ function renderTable() {
         : '-';
 
       return `
-      <tr data-id="${app.id}">
+      <tr class="table-row--clickable" data-id="${app.id}" tabindex="0" role="button" aria-label="查看 ${escapeAttr(app.company)} 详情">
         <td>${companyCell}</td>
         <td>${escapeHtml(app.position)}</td>
         <td>${escapeHtml(app.platform || '-')}</td>
@@ -485,12 +484,15 @@ function renderTable() {
     })
     .join('');
 
-  tbody.querySelectorAll('.btn-edit').forEach((btn) => {
-    btn.addEventListener('click', () => openForm(btn.dataset.id));
-  });
+  bindDetailTriggers(tbody);
 
-  tbody.querySelectorAll('.btn-delete').forEach((btn) => {
-    btn.addEventListener('click', () => openDeleteConfirm(btn.dataset.id));
+  tbody.querySelectorAll('.table-row--clickable').forEach((row) => {
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDetail(row.dataset.id);
+      }
+    });
   });
 }
 
@@ -620,9 +622,7 @@ function renderCalendarSidebar() {
     })
     .join('');
 
-  list.querySelectorAll('.btn-edit').forEach((btn) => {
-    btn.addEventListener('click', () => openForm(btn.dataset.id));
-  });
+  bindDetailTriggers(list);
 }
 
 function renderSettingsPage() {
@@ -658,6 +658,114 @@ function escapeHtml(str) {
 
 function escapeAttr(str) {
   return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatReminderLabel(minutes) {
+  if (!minutes) return '不提醒';
+  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 1440) return `${minutes / 60} 小时前`;
+  return `${minutes / 1440} 天前`;
+}
+
+function buildDetailField(label, value, options = {}) {
+  const { html = false, full = false, hidden = false } = options;
+  if (hidden || value === null || value === undefined || value === '') return '';
+  return `
+    <div class="detail-field${full ? ' detail-field--full' : ''}">
+      <dt>${label}</dt>
+      <dd>${html ? value : escapeHtml(String(value))}</dd>
+    </div>`;
+}
+
+function openDetail(id) {
+  const app = applications.find((a) => a.id === id);
+  if (!app) return;
+
+  detailTargetId = id;
+  const status = getStatusInfo(app.status);
+
+  $('#detailTitle').textContent = app.company;
+  const statusEl = $('#detailStatus');
+  statusEl.className = `badge ${status.badgeClass}`;
+  statusEl.textContent = status.label;
+
+  const fields = [
+    buildDetailField('岗位名称', app.position),
+    buildDetailField('投递平台', app.platform),
+    buildDetailField('投递日期', formatDate(app.date)),
+    buildDetailField('薪资范围', app.salary),
+    buildDetailField('工作地点', app.location),
+  ];
+
+  if (app.status === 'pending') {
+    fields.push(buildDetailField('投递截止', app.deadlineDate ? formatDate(app.deadlineDate) : null));
+    fields.push(
+      buildDetailField(
+        '截止提醒',
+        app.deadlineDate ? formatReminderLabel(app.deadlineReminderMinutes) : null
+      )
+    );
+  } else {
+    fields.push(
+      buildDetailField(
+        '面试时间',
+        app.interviewDate ? formatInterviewDateTime(app) : null
+      )
+    );
+    fields.push(
+      buildDetailField(
+        '面试提醒',
+        app.interviewDate ? formatReminderLabel(app.reminderMinutes) : null
+      )
+    );
+  }
+
+  if (app.link) {
+    fields.push(
+      buildDetailField(
+        '岗位链接',
+        `<a class="link-external" href="${escapeAttr(app.link)}" target="_blank" rel="noopener">${escapeHtml(app.link)}</a>`,
+        { html: true, full: true }
+      )
+    );
+  }
+
+  fields.push(buildDetailField('备注', app.notes, { full: true }));
+
+  $('#detailContent').innerHTML = fields.filter(Boolean).join('');
+  $('#detailModal').showModal();
+}
+
+function closeDetail() {
+  detailTargetId = null;
+  $('#detailModal').close();
+}
+
+function bindDetailTriggers(container) {
+  if (!container) return;
+
+  container.querySelectorAll('[data-id]').forEach((el) => {
+    if (el.matches('tr[data-id], .reminder-card[data-id], .cal-event-card[data-id]')) {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.cell-actions, .btn-edit, .btn-delete, a')) return;
+        openDetail(el.dataset.id);
+      });
+    }
+  });
+
+  container.querySelectorAll('.btn-edit').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openForm(btn.dataset.id);
+    });
+  });
+
+  container.querySelectorAll('.btn-delete').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDeleteConfirm(btn.dataset.id);
+    });
+  });
 }
 
 function populateStatusSelect() {
@@ -774,6 +882,7 @@ function closeDeleteConfirm() {
 function confirmDelete() {
   if (!deleteTargetId) return;
   applications = applications.filter((a) => a.id !== deleteTargetId);
+  if (detailTargetId === deleteTargetId) closeDetail();
   saveData();
   closeDeleteConfirm();
   render();
@@ -1020,6 +1129,19 @@ function bindEvents() {
 
   $('#formModal').addEventListener('click', (e) => {
     if (e.target === $('#formModal')) closeForm();
+  });
+  $('#detailModal').addEventListener('click', (e) => {
+    if (e.target === $('#detailModal')) closeDetail();
+  });
+  $('#btnCloseDetail').addEventListener('click', closeDetail);
+  $('#btnDetailClose').addEventListener('click', closeDetail);
+  $('#btnDetailEdit').addEventListener('click', () => {
+    const id = detailTargetId;
+    closeDetail();
+    if (id) openForm(id);
+  });
+  $('#btnDetailDelete').addEventListener('click', () => {
+    if (detailTargetId) openDeleteConfirm(detailTargetId);
   });
   $('#deleteModal').addEventListener('click', (e) => {
     if (e.target === $('#deleteModal')) closeDeleteConfirm();

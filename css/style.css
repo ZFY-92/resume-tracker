@@ -871,6 +871,15 @@ body {
   background: var(--bg-hover);
 }
 
+.table-row--clickable {
+  cursor: pointer;
+}
+
+.table-row--clickable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
 .table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -1005,6 +1014,71 @@ body {
   border-top: 1px solid var(--border);
 }
 
+.detail-modal__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.detail-modal__title-wrap h2 {
+  font-size: 1.125rem;
+  word-break: break-word;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 0;
+}
+
+.detail-field {
+  margin: 0;
+}
+
+.detail-field dt {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.detail-field dd {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.detail-field--full {
+  grid-column: 1 / -1;
+}
+
+.detail-field dd .link-external {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 400;
+}
+
+.detail-field dd .link-external:hover {
+  text-decoration: underline;
+}
+
+.reminder-card[data-id] {
+  cursor: pointer;
+}
+
+.cal-event-card[data-id] {
+  cursor: pointer;
+}
+
+.cal-event-card[data-id]:hover {
+  border-color: var(--primary);
+}
+
 /* Form */
 .form-grid {
   display: grid;
@@ -1104,6 +1178,10 @@ body {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-list {
     grid-template-columns: 1fr;
   }
 
