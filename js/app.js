@@ -667,11 +667,6 @@ function formatReminderLabel(minutes) {
   return `${minutes / 1440} 天前`;
 }
 
-function getCompanyInitial(company) {
-  const text = (company || '?').trim();
-  return text ? text.charAt(0) : '?';
-}
-
 function buildDetailItem(label, value, options = {}) {
   const { html = false, highlight = false, warn = false } = options;
   if (value === null || value === undefined || value === '') return '';
@@ -707,7 +702,6 @@ function openDetail(id) {
   detailTargetId = id;
   const status = getStatusInfo(app.status);
 
-  $('#detailAvatar').textContent = getCompanyInitial(app.company);
   $('#detailTitle').textContent = app.company;
   $('#detailPosition').textContent = app.position || '';
   $('#detailPosition').hidden = !app.position;
@@ -843,11 +837,11 @@ function toggleFormFieldsByStatus() {
 function openForm(id = null) {
   const modal = $('#formModal');
   const form = $('#applicationForm');
-  form.reset();
 
   if (id) {
     const app = applications.find((a) => a.id === id);
     if (!app) return;
+    form.reset();
     $('#modalTitle').textContent = '编辑投递';
     $('#fieldId').value = app.id;
     $('#fieldCompany').value = app.company;
@@ -865,6 +859,7 @@ function openForm(id = null) {
     $('#fieldDeadlineReminder').value = String(app.deadlineReminderMinutes ?? 1440);
     $('#fieldNotes').value = app.notes || '';
   } else {
+    form.reset();
     $('#modalTitle').textContent = '新增投递';
     $('#fieldId').value = '';
     $('#fieldDate').value = new Date().toISOString().slice(0, 10);
@@ -1193,6 +1188,7 @@ function bindEvents() {
     if (e.target === $('#detailModal')) closeDetail();
   });
   $('#btnCloseDetail').addEventListener('click', closeDetail);
+  $('#btnDetailClose').addEventListener('click', closeDetail);
   $('#btnDetailEdit').addEventListener('click', () => {
     const id = detailTargetId;
     closeDetail();

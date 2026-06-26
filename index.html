@@ -283,7 +283,6 @@
   <dialog class="modal modal--detail" id="detailModal">
     <div class="detail-hero" id="detailHero">
       <button type="button" class="modal__close detail-hero__close" id="btnCloseDetail" aria-label="关闭">&times;</button>
-      <div class="detail-hero__avatar" id="detailAvatar">投</div>
       <div class="detail-hero__info">
         <h2 id="detailTitle">投递详情</h2>
         <p class="detail-hero__position" id="detailPosition"></p>
@@ -295,12 +294,9 @@
       <div id="detailContent"></div>
     </div>
     <div class="modal__footer detail-footer">
-      <button type="button" class="btn btn--ghost detail-footer__btn" id="btnDetailDelete">
-        <span class="detail-footer__icon">🗑️</span> 删除
-      </button>
-      <button type="button" class="btn btn--primary detail-footer__btn" id="btnDetailEdit">
-        <span class="detail-footer__icon">✏️</span> 编辑
-      </button>
+      <button type="button" class="btn btn--ghost detail-footer__btn" id="btnDetailClose">关闭</button>
+      <button type="button" class="btn btn--ghost detail-footer__btn" id="btnDetailDelete">删除</button>
+      <button type="button" class="btn btn--primary detail-footer__btn" id="btnDetailEdit">编辑</button>
     </div>
   </dialog>
 
