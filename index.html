@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="追踪求职投递进度，管理面试安排与提醒">
+  <meta name="theme-color" content="#4f6ef7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="投递记录">
+  <title>简历投递记录</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="install-banner" id="installBanner" hidden>
+    <div class="install-banner__content">
+      <p class="install-banner__text" id="installBannerText"></p>
+      <div class="install-banner__actions">
+        <button type="button" class="btn btn--primary btn--sm" id="btnInstall" hidden>安装到手机</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnDismissInstall">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app">
+    <header class="header">
+      <div class="header__brand">
+        <div class="header__logo">📋</div>
+        <div>
+          <h1 class="header__title">简历投递记录</h1>
+          <p class="header__subtitle">追踪每一次投递，把握每一个机会</p>
+        </div>
+      </div>
+      <div class="header__actions">
+        <button type="button" class="btn btn--ghost" id="btnNotify" title="开启面试提醒">🔔 提醒</button>
+        <button type="button" class="btn btn--ghost" id="btnImport" title="导入数据">导入</button>
+        <button type="button" class="btn btn--ghost" id="btnExport" title="导出数据">导出</button>
+        <button type="button" class="btn btn--ghost" id="btnTheme" title="切换主题">🌙</button>
+        <button type="button" class="btn btn--primary" id="btnAdd">+ 新增投递</button>
+      </div>
+    </header>
+
+    <section class="reminders-panel" id="remindersPanel" hidden></section>
+
+    <section class="stats" id="statsPanel"></section>
+
+    <nav class="view-tabs" aria-label="视图切换">
+      <button type="button" class="view-tab view-tab--active" data-view="list">📋 列表</button>
+      <button type="button" class="view-tab" data-view="calendar">📅 日历</button>
+    </nav>
+
+    <section class="toolbar" id="listToolbar">
+      <div class="toolbar__search">
+        <span class="toolbar__search-icon">🔍</span>
+        <input type="search" id="searchInput" placeholder="搜索公司、岗位、平台..." autocomplete="off">
+      </div>
+      <div class="toolbar__filters" id="statusFilters"></div>
+    </section>
+
+    <main class="main" id="listView">
+      <div class="table-wrap">
+        <table class="table" id="applicationsTable">
+          <thead>
+            <tr>
+              <th>公司</th>
+              <th>岗位</th>
+              <th>平台</th>
+              <th>投递日期</th>
+              <th>面试时间</th>
+              <th>状态</th>
+              <th>薪资</th>
+              <th>备注</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="applicationsBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-state__icon">📭</div>
+          <h3>还没有投递记录</h3>
+          <p>点击「新增投递」开始记录你的求职进度</p>
+          <button type="button" class="btn btn--primary" id="btnAddEmpty">+ 新增投递</button>
+        </div>
+      </div>
+    </main>
+
+    <section class="calendar-view" id="calendarView" hidden>
+      <div class="calendar">
+        <div class="calendar__header">
+          <button type="button" class="btn btn--ghost btn--sm" id="calPrev" aria-label="上个月">‹</button>
+          <div class="calendar__title">
+            <h2 id="calMonthLabel"></h2>
+            <button type="button" class="btn btn--ghost btn--sm" id="calToday">今天</button>
+          </div>
+          <button type="button" class="btn btn--ghost btn--sm" id="calNext" aria-label="下个月">›</button>
+        </div>
+        <div class="calendar__weekdays">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+        <div class="calendar__grid" id="calGrid"></div>
+        <div class="calendar__legend">
+          <span class="legend-item"><i class="dot dot--interview"></i> 面试</span>
+          <span class="legend-item"><i class="dot dot--apply"></i> 投递</span>
+        </div>
+      </div>
+      <aside class="calendar-sidebar">
+        <h3 id="calSidebarTitle">选择日期查看详情</h3>
+        <div class="calendar-sidebar__list" id="calDayList">
+          <p class="calendar-sidebar__hint">点击日历中的日期，查看当天的投递与面试安排</p>
+        </div>
+      </aside>
+    </section>
+  </div>
+
+  <!-- 新增/编辑弹窗 -->
+  <dialog class="modal" id="formModal">
+    <form class="modal__form" id="applicationForm">
+      <div class="modal__header">
+        <h2 id="modalTitle">新增投递</h2>
+        <button type="button" class="modal__close" id="btnCloseModal" aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal__body">
+        <input type="hidden" id="fieldId">
+        <div class="form-grid">
+          <label class="form-field">
+            <span>公司名称 <em>*</em></span>
+            <input type="text" id="fieldCompany" required placeholder="例如：字节跳动">
+          </label>
+          <label class="form-field">
+            <span>岗位名称 <em>*</em></span>
+            <input type="text" id="fieldPosition" required placeholder="例如：前端开发工程师">
+          </label>
+          <label class="form-field">
+            <span>投递平台</span>
+            <select id="fieldPlatform">
+              <option value="">请选择</option>
+              <option value="BOSS直聘">BOSS直聘</option>
+              <option value="智联招聘">智联招聘</option>
+              <option value="前程无忧">前程无忧</option>
+              <option value="猎聘">猎聘</option>
+              <option value="拉勾">拉勾</option>
+              <option value="内推">内推</option>
+              <option value="官网">官网</option>
+              <option value="其他">其他</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>投递日期 <em>*</em></span>
+            <input type="date" id="fieldDate" required>
+          </label>
+          <label class="form-field">
+            <span>当前状态</span>
+            <select id="fieldStatus"></select>
+          </label>
+          <label class="form-field">
+            <span>薪资范围</span>
+            <input type="text" id="fieldSalary" placeholder="例如：15-25K">
+          </label>
+          <label class="form-field">
+            <span>工作地点</span>
+            <input type="text" id="fieldLocation" placeholder="例如：北京">
+          </label>
+          <label class="form-field">
+            <span>岗位链接</span>
+            <input type="url" id="fieldLink" placeholder="https://">
+          </label>
+          <label class="form-field">
+            <span>面试日期</span>
+            <input type="date" id="fieldInterviewDate">
+          </label>
+          <label class="form-field">
+            <span>面试时间</span>
+            <input type="time" id="fieldInterviewTime">
+          </label>
+          <label class="form-field">
+            <span>面试提醒</span>
+            <select id="fieldReminder">
+              <option value="0">不提醒</option>
+              <option value="15">15 分钟前</option>
+              <option value="30">30 分钟前</option>
+              <option value="60" selected>1 小时前</option>
+              <option value="120">2 小时前</option>
+              <option value="1440">1 天前</option>
+            </select>
+          </label>
+          <label class="form-field form-field--full">
+            <span>备注</span>
+            <textarea id="fieldNotes" rows="3" placeholder="面试安排、联系人、个人感受等..."></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--ghost" id="btnCancel">取消</button>
+        <button type="submit" class="btn btn--primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 删除确认 -->
+  <dialog class="modal modal--sm" id="deleteModal">
+    <div class="modal__header">
+      <h2>确认删除</h2>
+      <button type="button" class="modal__close" id="btnCloseDelete" aria-label="关闭">&times;</button>
+    </div>
+    <div class="modal__body">
+      <p>确定要删除 <strong id="deleteTargetName"></strong> 的投递记录吗？此操作不可撤销。</p>
+    </div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--ghost" id="btnCancelDelete">取消</button>
+      <button type="button" class="btn btn--danger" id="btnConfirmDelete">删除</button>
+    </div>
+  </dialog>
+
+  <input type="file" id="importFile" accept=".json" hidden>
+
+  <script src="js/pwa.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
