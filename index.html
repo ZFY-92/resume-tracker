@@ -31,95 +31,148 @@
 
   <div class="app">
     <header class="header">
-      <div class="header__brand">
-        <div class="header__logo">📋</div>
-        <div>
-          <h1 class="header__title">简历投递记录</h1>
-          <p class="header__subtitle">追踪每一次投递，把握每一个机会</p>
-        </div>
-      </div>
-      <div class="header__actions">
-        <button type="button" class="btn btn--ghost" id="btnNotify" title="开启面试与截止提醒">🔔 提醒</button>
-        <button type="button" class="btn btn--ghost" id="btnImport" title="导入数据">导入</button>
-        <button type="button" class="btn btn--ghost" id="btnExport" title="导出数据">导出</button>
-        <button type="button" class="btn btn--ghost" id="btnTheme" title="切换主题">🌙</button>
-        <button type="button" class="btn btn--primary" id="btnAdd">+ 新增投递</button>
-      </div>
+      <h1 class="header__page-title" id="pageTitle">首页</h1>
+      <button type="button" class="btn btn--primary btn--sm" id="btnAdd">+ 新增</button>
     </header>
 
-    <section class="reminders-panel" id="remindersPanel" hidden></section>
+    <div class="page-stack">
+      <!-- 首页 -->
+      <section class="page page--active" id="pageHome" data-page="home">
+        <section class="reminders-panel" id="remindersPanel" hidden></section>
+        <section class="stats" id="statsPanel"></section>
+        <p class="page-hint">点击上方状态卡片，跳转到对应列表</p>
+      </section>
 
-    <section class="stats" id="statsPanel"></section>
-
-    <nav class="view-tabs" aria-label="视图切换">
-      <button type="button" class="view-tab view-tab--active" data-view="list">📋 列表</button>
-      <button type="button" class="view-tab" data-view="calendar">📅 日历</button>
-    </nav>
-
-    <section class="toolbar" id="listToolbar">
-      <div class="toolbar__search">
-        <span class="toolbar__search-icon">🔍</span>
-        <input type="search" id="searchInput" placeholder="搜索公司、岗位、平台..." autocomplete="off">
-      </div>
-      <div class="toolbar__filters" id="statusFilters"></div>
-    </section>
-
-    <main class="main" id="listView">
-      <div class="list-filter-bar" id="listFilterBar"></div>
-      <div class="table-wrap">
-        <table class="table" id="applicationsTable">
-          <thead>
-            <tr>
-              <th>公司</th>
-              <th>岗位</th>
-              <th>平台</th>
-              <th>投递日期</th>
-              <th>截止/面试</th>
-              <th>状态</th>
-              <th>薪资</th>
-              <th>备注</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="applicationsBody"></tbody>
-        </table>
-        <div class="empty-state" id="emptyState" hidden>
-          <div class="empty-state__icon">📭</div>
-          <h3 id="emptyStateTitle">还没有投递记录</h3>
-          <p id="emptyStateDesc">点击「新增投递」开始记录你的求职进度</p>
-          <button type="button" class="btn btn--primary" id="btnAddEmpty">+ 新增投递</button>
-        </div>
-      </div>
-    </main>
-
-    <section class="calendar-view" id="calendarView" hidden>
-      <div class="calendar">
-        <div class="calendar__header">
-          <button type="button" class="btn btn--ghost btn--sm" id="calPrev" aria-label="上个月">‹</button>
-          <div class="calendar__title">
-            <h2 id="calMonthLabel"></h2>
-            <button type="button" class="btn btn--ghost btn--sm" id="calToday">今天</button>
+      <!-- 列表 -->
+      <section class="page" id="pageList" data-page="list">
+        <section class="toolbar" id="listToolbar">
+          <div class="toolbar__search">
+            <span class="toolbar__search-icon">🔍</span>
+            <input type="search" id="searchInput" placeholder="搜索公司、岗位、平台..." autocomplete="off">
           </div>
-          <button type="button" class="btn btn--ghost btn--sm" id="calNext" aria-label="下个月">›</button>
+          <div class="toolbar__filters" id="statusFilters"></div>
+        </section>
+        <div class="list-filter-bar" id="listFilterBar"></div>
+        <div class="table-wrap">
+          <table class="table" id="applicationsTable">
+            <thead>
+              <tr>
+                <th>公司</th>
+                <th>岗位</th>
+                <th>平台</th>
+                <th>投递日期</th>
+                <th>截止/面试</th>
+                <th>状态</th>
+                <th>薪资</th>
+                <th>备注</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="applicationsBody"></tbody>
+          </table>
+          <div class="empty-state" id="emptyState" hidden>
+            <div class="empty-state__icon">📭</div>
+            <h3 id="emptyStateTitle">还没有投递记录</h3>
+            <p id="emptyStateDesc">点击「新增投递」开始记录你的求职进度</p>
+            <button type="button" class="btn btn--primary" id="btnAddEmpty">+ 新增投递</button>
+          </div>
         </div>
-        <div class="calendar__weekdays">
-          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </section>
+
+      <!-- 日历 -->
+      <section class="page" id="pageCalendar" data-page="calendar">
+        <div class="calendar-view" id="calendarView">
+          <div class="calendar">
+            <div class="calendar__header">
+              <button type="button" class="btn btn--ghost btn--sm" id="calPrev" aria-label="上个月">‹</button>
+              <div class="calendar__title">
+                <h2 id="calMonthLabel"></h2>
+                <button type="button" class="btn btn--ghost btn--sm" id="calToday">今天</button>
+              </div>
+              <button type="button" class="btn btn--ghost btn--sm" id="calNext" aria-label="下个月">›</button>
+            </div>
+            <div class="calendar__weekdays">
+              <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+            </div>
+            <div class="calendar__grid" id="calGrid"></div>
+            <div class="calendar__legend">
+              <span class="legend-item"><i class="dot dot--interview"></i> 面试</span>
+              <span class="legend-item"><i class="dot dot--apply"></i> 投递</span>
+              <span class="legend-item"><i class="dot dot--deadline"></i> 待投递截止</span>
+            </div>
+          </div>
+          <aside class="calendar-sidebar">
+            <h3 id="calSidebarTitle">选择日期查看详情</h3>
+            <div class="calendar-sidebar__list" id="calDayList">
+              <p class="calendar-sidebar__hint">点击日历中的日期，查看当天的投递与面试安排</p>
+            </div>
+          </aside>
         </div>
-        <div class="calendar__grid" id="calGrid"></div>
-        <div class="calendar__legend">
-          <span class="legend-item"><i class="dot dot--interview"></i> 面试</span>
-          <span class="legend-item"><i class="dot dot--apply"></i> 投递</span>
-          <span class="legend-item"><i class="dot dot--deadline"></i> 待投递截止</span>
+      </section>
+
+      <!-- 我的 -->
+      <section class="page" id="pageSettings" data-page="settings">
+        <div class="settings-group">
+          <h3 class="settings-group__title">提醒与数据</h3>
+          <button type="button" class="settings-item" id="btnNotify">
+            <span class="settings-item__icon">🔔</span>
+            <span class="settings-item__label">面试与截止提醒</span>
+            <span class="settings-item__value" id="notifyStatus">未开启</span>
+          </button>
+          <button type="button" class="settings-item" id="btnImport">
+            <span class="settings-item__icon">📥</span>
+            <span class="settings-item__label">导入数据</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
+          <button type="button" class="settings-item" id="btnExport">
+            <span class="settings-item__icon">📤</span>
+            <span class="settings-item__label">导出数据</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
         </div>
-      </div>
-      <aside class="calendar-sidebar">
-        <h3 id="calSidebarTitle">选择日期查看详情</h3>
-        <div class="calendar-sidebar__list" id="calDayList">
-          <p class="calendar-sidebar__hint">点击日历中的日期，查看当天的投递与面试安排</p>
+        <div class="settings-group">
+          <h3 class="settings-group__title">外观</h3>
+          <button type="button" class="settings-item" id="btnTheme">
+            <span class="settings-item__icon">🌙</span>
+            <span class="settings-item__label">深色模式</span>
+            <span class="settings-item__value" id="themeStatus">关闭</span>
+          </button>
         </div>
-      </aside>
-    </section>
+        <div class="settings-group">
+          <h3 class="settings-group__title">关于</h3>
+          <div class="settings-item settings-item--static">
+            <span class="settings-item__icon">📋</span>
+            <span class="settings-item__label">数据存储</span>
+            <span class="settings-item__value">本地浏览器</span>
+          </div>
+          <div class="settings-item settings-item--static">
+            <span class="settings-item__icon">📊</span>
+            <span class="settings-item__label">记录总数</span>
+            <span class="settings-item__value" id="settingsRecordCount">0</span>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
+
+  <nav class="tab-bar" id="tabBar" aria-label="主导航">
+    <a href="#/home" class="tab-bar__item tab-bar__item--active" data-route="home">
+      <span class="tab-bar__icon">🏠</span>
+      <span class="tab-bar__label">首页</span>
+    </a>
+    <a href="#/list/all" class="tab-bar__item" data-route="list">
+      <span class="tab-bar__icon">📋</span>
+      <span class="tab-bar__label">列表</span>
+    </a>
+    <a href="#/calendar" class="tab-bar__item" data-route="calendar">
+      <span class="tab-bar__icon">📅</span>
+      <span class="tab-bar__label">日历</span>
+    </a>
+    <a href="#/settings" class="tab-bar__item" data-route="settings">
+      <span class="tab-bar__icon">👤</span>
+      <span class="tab-bar__label">我的</span>
+    </a>
+  </nav>
 
   <!-- 新增/编辑弹窗 -->
   <dialog class="modal" id="formModal">

@@ -2,7 +2,7 @@
   "name": "简历投递记录",
   "short_name": "投递记录",
   "description": "追踪求职投递进度，管理面试安排与提醒",
-  "start_url": "./index.html",
+  "start_url": "./index.html#/home",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

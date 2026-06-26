@@ -16,11 +16,20 @@ const STATUSES = [
 
 const statusMap = Object.fromEntries(STATUSES.map((s) => [s.value, s]));
 
+const PAGE_TITLES = {
+  home: '首页',
+  list: '投递列表',
+  calendar: '日历',
+  settings: '我的',
+};
+
+const VALID_PAGES = ['home', 'list', 'calendar', 'settings'];
+
 let applications = [];
 let filterStatus = 'all';
 let searchQuery = '';
 let deleteTargetId = null;
-let currentView = 'list';
+let currentPage = 'home';
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
 let selectedCalDate = null;
@@ -266,32 +275,96 @@ function renderRemindersPanel() {
   });
 }
 
+function parseRoute() {
+  const raw = location.hash.replace(/^#\/?/, '') || 'home';
+  const [page, sub] = raw.split('/');
+
+  const resolvedPage = VALID_PAGES.includes(page) ? page : 'home';
+  let status = 'all';
+
+  if (resolvedPage === 'list') {
+    if (!sub || sub === 'all') {
+      status = 'all';
+    } else if (STATUSES.some((s) => s.value === sub)) {
+      status = sub;
+    }
+  }
+
+  return { page: resolvedPage, filterStatus: status };
+}
+
+function navigate(path, { replace = false } = {}) {
+  const hash = path.startsWith('#') ? path : `#/${path.replace(/^\//, '')}`;
+  if (location.hash === hash && !replace) {
+    applyRoute();
+    return;
+  }
+  if (replace) {
+    history.replaceState(null, '', hash);
+    applyRoute();
+  } else {
+    location.hash = hash.slice(1);
+  }
+}
+
+function applyRoute() {
+  const { page, filterStatus: status } = parseRoute();
+  currentPage = page;
+  filterStatus = status;
+
+  document.querySelectorAll('.page').forEach((el) => {
+    el.classList.toggle('page--active', el.dataset.page === page);
+  });
+
+  document.querySelectorAll('.tab-bar__item').forEach((tab) => {
+    tab.classList.toggle('tab-bar__item--active', tab.dataset.route === page);
+  });
+
+  const titleEl = $('#pageTitle');
+  if (titleEl) {
+    titleEl.textContent =
+      page === 'list' && filterStatus !== 'all'
+        ? `${getFilterLabel()}记录`
+        : PAGE_TITLES[page];
+  }
+
+  const btnAdd = $('#btnAdd');
+  if (btnAdd) {
+    btnAdd.hidden = page !== 'home' && page !== 'list';
+  }
+
+  document.title =
+    page === 'list' && filterStatus !== 'all'
+      ? `${getFilterLabel()} - 简历投递记录`
+      : `${PAGE_TITLES[page]} - 简历投递记录`;
+
+  window.scrollTo(0, 0);
+  render();
+}
+
+function initRouter() {
+  if (!location.hash || location.hash === '#') {
+    navigate('home', { replace: true });
+  } else {
+    applyRoute();
+  }
+  window.addEventListener('hashchange', applyRoute);
+}
+
 function getFilterLabel(status = filterStatus) {
   if (status === 'all') return '全部';
   return getStatusInfo(status).label;
 }
 
 function setFilterStatus(status) {
-  filterStatus = status;
-  if (currentView !== 'list') {
-    switchView('list');
-  }
-  render();
-  requestAnimationFrame(() => {
-    $('#listFilterBar')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  });
+  const path = status === 'all' ? 'list/all' : `list/${status}`;
+  navigate(path);
 }
 
 function renderListFilterBar() {
   const bar = $('#listFilterBar');
-  if (!bar) return;
+  if (!bar || currentPage !== 'list') return;
 
-  if (currentView !== 'list') {
-    bar.hidden = true;
-    return;
-  }
-
-  bar.hidden = false;
   const filtered = getFilteredApplications();
   const label = filterStatus === 'all' ? '全部投递记录' : `${getFilterLabel()}记录`;
 
@@ -374,7 +447,7 @@ function renderTable() {
     table.hidden = true;
     emptyState.hidden = false;
     emptyTitle.textContent = `暂无「${getFilterLabel()}」记录`;
-    emptyDesc.textContent = '点击上方其他状态卡片查看，或新增一条投递记录';
+    emptyDesc.textContent = '返回首页切换其他状态，或新增一条投递记录';
     tbody.innerHTML = '';
     return;
   }
@@ -552,28 +625,28 @@ function renderCalendarSidebar() {
   });
 }
 
-function switchView(view) {
-  currentView = view;
-  document.querySelectorAll('.view-tab').forEach((tab) => {
-    tab.classList.toggle('view-tab--active', tab.dataset.view === view);
-  });
-  $('#listView').hidden = view !== 'list';
-  $('#listToolbar').hidden = view !== 'list';
-  $('#calendarView').hidden = view !== 'calendar';
-
-  if (view === 'calendar') {
-    renderCalendar();
-  }
+function renderSettingsPage() {
+  const countEl = $('#settingsRecordCount');
+  if (countEl) countEl.textContent = String(applications.length);
+  updateNotifyButton();
+  updateThemeButton(document.documentElement.getAttribute('data-theme') || 'light');
 }
 
 function render() {
-  renderRemindersPanel();
-  renderStats();
-  renderStatusFilters();
-  renderListFilterBar();
-  renderTable();
-  if (currentView === 'calendar') {
+  if (currentPage === 'home') {
+    renderRemindersPanel();
+    renderStats();
+  }
+  if (currentPage === 'list') {
+    renderStatusFilters();
+    renderListFilterBar();
+    renderTable();
+  }
+  if (currentPage === 'calendar') {
     renderCalendar();
+  }
+  if (currentPage === 'settings') {
+    renderSettingsPage();
   }
 }
 
@@ -852,21 +925,25 @@ function toggleTheme() {
 }
 
 function updateThemeButton(theme) {
-  $('#btnTheme').textContent = theme === 'dark' ? '☀️' : '🌙';
+  const themeStatus = $('#themeStatus');
+  if (themeStatus) {
+    themeStatus.textContent = theme === 'dark' ? '已开启' : '关闭';
+  }
 }
 
 function updateNotifyButton() {
-  const btn = $('#btnNotify');
+  const notifyStatus = $('#notifyStatus');
   if (!('Notification' in window)) {
-    btn.textContent = '🔕 不支持';
+    if (notifyStatus) notifyStatus.textContent = '不支持';
     return;
   }
-  if (Notification.permission === 'granted') {
-    btn.textContent = '🔔 已开启';
-    btn.classList.add('btn--notify-on');
-  } else {
-    btn.textContent = '🔔 提醒';
-    btn.classList.remove('btn--notify-on');
+  if (notifyStatus) {
+    notifyStatus.textContent =
+      Notification.permission === 'granted'
+        ? '已开启'
+        : Notification.permission === 'denied'
+        ? '已拒绝'
+        : '未开启';
   }
 }
 
@@ -904,8 +981,15 @@ function bindEvents() {
     updateNotifyButton();
   });
 
-  document.querySelectorAll('.view-tab').forEach((tab) => {
-    tab.addEventListener('click', () => switchView(tab.dataset.view));
+  document.querySelectorAll('.tab-bar__item').forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      const route = tab.dataset.route;
+      if (route === 'list' && currentPage === 'list') return;
+      if (route === 'list') {
+        e.preventDefault();
+        navigate(filterStatus === 'all' ? 'list/all' : `list/${filterStatus}`);
+      }
+    });
   });
 
   $('#calPrev').addEventListener('click', () => {
@@ -951,8 +1035,7 @@ function init() {
   populateStatusSelect();
   loadData();
   bindEvents();
-  updateNotifyButton();
-  render();
+  initRouter();
   startReminderChecker();
 }
 
