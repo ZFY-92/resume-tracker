@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resume-tracker-v4';
+const CACHE_NAME = 'resume-tracker-v5';
 const ASSETS = [
   './index.html',
   './css/style.css',

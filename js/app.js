@@ -667,14 +667,37 @@ function formatReminderLabel(minutes) {
   return `${minutes / 1440} 天前`;
 }
 
-function buildDetailField(label, value, options = {}) {
-  const { html = false, full = false, hidden = false } = options;
-  if (hidden || value === null || value === undefined || value === '') return '';
+function getCompanyInitial(company) {
+  const text = (company || '?').trim();
+  return text ? text.charAt(0) : '?';
+}
+
+function buildDetailItem(label, value, options = {}) {
+  const { html = false, highlight = false, warn = false } = options;
+  if (value === null || value === undefined || value === '') return '';
   return `
-    <div class="detail-field${full ? ' detail-field--full' : ''}">
-      <dt>${label}</dt>
-      <dd>${html ? value : escapeHtml(String(value))}</dd>
+    <div class="detail-item${highlight ? ' detail-item--highlight' : ''}${warn ? ' detail-item--warn' : ''}">
+      <span class="detail-item__label">${label}</span>
+      <span class="detail-item__value">${html ? value : escapeHtml(String(value))}</span>
     </div>`;
+}
+
+function buildDetailSection(title, icon, itemsHtml) {
+  if (!itemsHtml) return '';
+  return `
+    <section class="detail-section">
+      <h3 class="detail-section__title"><span class="detail-section__icon">${icon}</span>${title}</h3>
+      <div class="detail-section__grid">${itemsHtml}</div>
+    </section>`;
+}
+
+function buildDetailQuickChip(icon, text) {
+  if (!text) return '';
+  return `
+    <span class="detail-chip">
+      <span class="detail-chip__icon">${icon}</span>
+      <span class="detail-chip__text">${escapeHtml(text)}</span>
+    </span>`;
 }
 
 function openDetail(id) {
@@ -684,55 +707,91 @@ function openDetail(id) {
   detailTargetId = id;
   const status = getStatusInfo(app.status);
 
+  $('#detailAvatar').textContent = getCompanyInitial(app.company);
   $('#detailTitle').textContent = app.company;
+  $('#detailPosition').textContent = app.position || '';
+  $('#detailPosition').hidden = !app.position;
   const statusEl = $('#detailStatus');
-  statusEl.className = `badge ${status.badgeClass}`;
+  statusEl.className = `badge detail-hero__badge ${status.badgeClass}`;
   statusEl.textContent = status.label;
 
-  const fields = [
-    buildDetailField('岗位名称', app.position),
-    buildDetailField('投递平台', app.platform),
-    buildDetailField('投递日期', formatDate(app.date)),
-    buildDetailField('薪资范围', app.salary),
-    buildDetailField('工作地点', app.location),
-  ];
+  const quickHtml = [
+    buildDetailQuickChip('📱', app.platform),
+    buildDetailQuickChip('📅', `投递 ${formatDate(app.date)}`),
+    buildDetailQuickChip('💰', app.salary),
+    buildDetailQuickChip('📍', app.location),
+  ]
+    .filter(Boolean)
+    .join('');
+  $('#detailQuick').innerHTML = quickHtml
+    ? `<div class="detail-quick__inner">${quickHtml}</div>`
+    : '';
 
+  let scheduleHtml = '';
   if (app.status === 'pending') {
-    fields.push(buildDetailField('投递截止', app.deadlineDate ? formatDate(app.deadlineDate) : null));
-    fields.push(
-      buildDetailField(
+    scheduleHtml = [
+      buildDetailItem(
+        '投递截止',
+        app.deadlineDate ? formatDate(app.deadlineDate) : '未设置',
+        { warn: app.deadlineDate && isDeadlineOverdue(app) }
+      ),
+      buildDetailItem(
         '截止提醒',
         app.deadlineDate ? formatReminderLabel(app.deadlineReminderMinutes) : null
-      )
-    );
+      ),
+      buildDetailItem(
+        '剩余时间',
+        app.deadlineDate ? getDeadlineUntilLabel(getDeadlineDateTime(app)) : null,
+        { highlight: app.deadlineDate && isDeadlineSoon(app) && !isDeadlineOverdue(app) }
+      ),
+    ].join('');
   } else {
-    fields.push(
-      buildDetailField(
+    scheduleHtml = [
+      buildDetailItem(
         '面试时间',
-        app.interviewDate ? formatInterviewDateTime(app) : null
-      )
-    );
-    fields.push(
-      buildDetailField(
+        app.interviewDate ? formatInterviewDateTime(app) : '未安排',
+        { highlight: isInterviewSoon(app) }
+      ),
+      buildDetailItem(
         '面试提醒',
         app.interviewDate ? formatReminderLabel(app.reminderMinutes) : null
-      )
-    );
+      ),
+    ].join('');
   }
+
+  const sections = [
+    buildDetailSection('时间安排', '🕐', scheduleHtml),
+  ];
 
   if (app.link) {
-    fields.push(
-      buildDetailField(
-        '岗位链接',
-        `<a class="link-external" href="${escapeAttr(app.link)}" target="_blank" rel="noopener">${escapeHtml(app.link)}</a>`,
-        { html: true, full: true }
-      )
-    );
+    sections.push(`
+      <section class="detail-section">
+        <h3 class="detail-section__title"><span class="detail-section__icon">🔗</span>岗位链接</h3>
+        <a class="detail-link-btn" href="${escapeAttr(app.link)}" target="_blank" rel="noopener">
+          <span>查看岗位详情</span>
+          <span class="detail-link-btn__arrow">→</span>
+        </a>
+      </section>`);
   }
 
-  fields.push(buildDetailField('备注', app.notes, { full: true }));
+  sections.push(`
+    <section class="detail-section">
+      <h3 class="detail-section__title"><span class="detail-section__icon">📝</span>备注</h3>
+      <div class="detail-notes${app.notes ? '' : ' detail-notes--empty'}">${app.notes ? escapeHtml(app.notes) : '暂无备注'}</div>
+    </section>`);
 
-  $('#detailContent').innerHTML = fields.filter(Boolean).join('');
+  if (app.updatedAt || app.createdAt) {
+    const meta = app.updatedAt
+      ? `更新于 ${formatDate(app.updatedAt.slice(0, 10))}`
+      : app.createdAt
+      ? `创建于 ${formatDate(app.createdAt.slice(0, 10))}`
+      : '';
+    if (meta) {
+      sections.push(`<p class="detail-meta">${meta}</p>`);
+    }
+  }
+
+  $('#detailContent').innerHTML = sections.join('');
   $('#detailModal').showModal();
 }
 
@@ -1134,7 +1193,6 @@ function bindEvents() {
     if (e.target === $('#detailModal')) closeDetail();
   });
   $('#btnCloseDetail').addEventListener('click', closeDetail);
-  $('#btnDetailClose').addEventListener('click', closeDetail);
   $('#btnDetailEdit').addEventListener('click', () => {
     const id = detailTargetId;
     closeDetail();
