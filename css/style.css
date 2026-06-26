@@ -235,6 +235,12 @@ body {
   margin-bottom: 12px;
 }
 
+.reminders-panel__section + .reminders-panel__section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(79, 110, 247, 0.25);
+}
+
 .reminders-panel__title {
   font-weight: 600;
   font-size: 0.9375rem;
@@ -260,6 +266,23 @@ body {
 .reminder-card--today {
   border-color: var(--status-interview1);
   box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2);
+}
+
+.reminder-card--deadline .reminder-card__time strong {
+  color: var(--status-pending, #8b5cf6);
+}
+
+.reminder-card--deadline.reminder-card--today .reminder-card__time strong {
+  color: var(--status-interview1);
+}
+
+.reminder-card--overdue {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+.reminder-card--overdue .reminder-card__time strong {
+  color: var(--danger);
 }
 
 .reminder-card__time {
@@ -439,6 +462,10 @@ body {
   background: var(--status-applied);
 }
 
+.dot--deadline {
+  background: var(--status-pending, #8b5cf6);
+}
+
 .calendar__legend {
   display: flex;
   gap: 16px;
@@ -529,6 +556,11 @@ body {
   color: var(--status-applied);
 }
 
+.cal-event-tag--deadline {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--status-pending, #8b5cf6);
+}
+
 .cal-event-card__notes {
   font-size: 0.8125rem;
   color: var(--text-secondary);
@@ -543,6 +575,21 @@ body {
 
 .cell-interview--soon {
   color: var(--status-interview1);
+  font-weight: 600;
+}
+
+.cell-deadline {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.cell-deadline--soon {
+  color: var(--status-pending, #8b5cf6);
+  font-weight: 600;
+}
+
+.cell-deadline--overdue {
+  color: var(--danger);
   font-weight: 600;
 }
 
@@ -843,6 +890,10 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.form-section {
+  display: contents;
 }
 
 .form-field {

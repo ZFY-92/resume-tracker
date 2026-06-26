@@ -82,6 +82,11 @@ function getInterviewDateTime(app) {
   return new Date(`${app.interviewDate}T${time}:00`);
 }
 
+function getDeadlineDateTime(app) {
+  if (!app.deadlineDate) return null;
+  return new Date(`${app.deadlineDate}T23:59:59`);
+}
+
 function getStatusInfo(value) {
   return statusMap[value] || STATUSES[1];
 }
@@ -111,9 +116,30 @@ function getUpcomingInterviews(withinDays = 7) {
     .sort((a, b) => getInterviewDateTime(a) - getInterviewDateTime(b));
 }
 
+function getUpcomingDeadlines(withinDays = 7) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const limit = new Date(todayStart);
+  limit.setDate(limit.getDate() + withinDays);
+  limit.setHours(23, 59, 59, 999);
+
+  return applications
+    .filter((app) => {
+      if (app.status !== 'pending') return false;
+      const dt = getDeadlineDateTime(app);
+      return dt && dt <= limit;
+    })
+    .sort((a, b) => getDeadlineDateTime(a) - getDeadlineDateTime(b));
+}
+
 function getReminderKey(app) {
   const minutes = app.reminderMinutes || 0;
-  return `${app.id}-${app.interviewDate}-${app.interviewTime || ''}-${minutes}`;
+  return `interview-${app.id}-${app.interviewDate}-${app.interviewTime || ''}-${minutes}`;
+}
+
+function getDeadlineReminderKey(app) {
+  const minutes = app.deadlineReminderMinutes || 0;
+  return `deadline-${app.id}-${app.deadlineDate}-${minutes}`;
 }
 
 function getTimeUntilLabel(dt) {
@@ -127,42 +153,109 @@ function getTimeUntilLabel(dt) {
   return `${days} 天后`;
 }
 
+function getDeadlineUntilLabel(dt) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const deadlineStart = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  const dayDiff = Math.round((deadlineStart - todayStart) / 86400000);
+
+  if (dayDiff < 0) return `已过期 ${Math.abs(dayDiff)} 天`;
+  if (dayDiff === 0) return '今日截止';
+  if (dayDiff === 1) return '明天截止';
+  return `${dayDiff} 天后截止`;
+}
+
+function isDeadlineOverdue(app) {
+  const dt = getDeadlineDateTime(app);
+  if (!dt || app.status !== 'pending') return false;
+  return dt < new Date();
+}
+
+function isDeadlineSoon(app) {
+  const dt = getDeadlineDateTime(app);
+  if (!dt || app.status !== 'pending') return false;
+  const now = new Date();
+  const diff = dt - now;
+  return diff >= 0 && diff <= 3 * 24 * 60 * 60 * 1000;
+}
+
+function renderReminderCard(app, type) {
+  if (type === 'deadline') {
+    const dt = getDeadlineDateTime(app);
+    const todayKey = toDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    const isToday = app.deadlineDate === todayKey;
+    const isOverdue = isDeadlineOverdue(app);
+    return `
+      <div class="reminder-card reminder-card--deadline${isToday ? ' reminder-card--today' : ''}${isOverdue ? ' reminder-card--overdue' : ''}" data-id="${app.id}">
+        <div class="reminder-card__time">
+          <strong>${isOverdue ? '已过期' : isToday ? '今日' : formatDate(app.deadlineDate)}</strong>
+          <span>${getDeadlineUntilLabel(dt)}</span>
+        </div>
+        <div class="reminder-card__info">
+          <div class="reminder-card__company">${escapeHtml(app.company)}</div>
+          <div class="reminder-card__position">${escapeHtml(app.position)} · 待投递</div>
+        </div>
+        <span class="badge badge--pending">待投递</span>
+        <button type="button" class="btn btn--ghost btn--sm btn-edit" data-id="${app.id}">编辑</button>
+      </div>`;
+  }
+
+  const dt = getInterviewDateTime(app);
+  const status = getStatusInfo(app.status);
+  const isToday = app.interviewDate === toDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  return `
+    <div class="reminder-card${isToday ? ' reminder-card--today' : ''}" data-id="${app.id}">
+      <div class="reminder-card__time">
+        <strong>${app.interviewTime || '全天'}</strong>
+        <span>${getTimeUntilLabel(dt)}</span>
+      </div>
+      <div class="reminder-card__info">
+        <div class="reminder-card__company">${escapeHtml(app.company)}</div>
+        <div class="reminder-card__position">${escapeHtml(app.position)} · ${formatDate(app.interviewDate)}</div>
+      </div>
+      <span class="badge ${status.badgeClass}">${status.label}</span>
+      <button type="button" class="btn btn--ghost btn--sm btn-edit" data-id="${app.id}">编辑</button>
+    </div>`;
+}
+
 function renderRemindersPanel() {
   const panel = $('#remindersPanel');
-  const upcoming = getUpcomingInterviews(7);
+  const upcomingInterviews = getUpcomingInterviews(7);
+  const upcomingDeadlines = getUpcomingDeadlines(7);
 
-  if (upcoming.length === 0) {
+  if (upcomingInterviews.length === 0 && upcomingDeadlines.length === 0) {
     panel.hidden = true;
     return;
   }
 
   panel.hidden = false;
-  panel.innerHTML = `
-    <div class="reminders-panel__header">
-      <span class="reminders-panel__title">🔔 近期面试 (${upcoming.length})</span>
-    </div>
-    <div class="reminders-panel__list">
-      ${upcoming
-        .map((app) => {
-          const dt = getInterviewDateTime(app);
-          const status = getStatusInfo(app.status);
-          const isToday = app.interviewDate === toDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-          return `
-          <div class="reminder-card${isToday ? ' reminder-card--today' : ''}" data-id="${app.id}">
-            <div class="reminder-card__time">
-              <strong>${app.interviewTime || '全天'}</strong>
-              <span>${getTimeUntilLabel(dt)}</span>
-            </div>
-            <div class="reminder-card__info">
-              <div class="reminder-card__company">${escapeHtml(app.company)}</div>
-              <div class="reminder-card__position">${escapeHtml(app.position)} · ${formatDate(app.interviewDate)}</div>
-            </div>
-            <span class="badge ${status.badgeClass}">${status.label}</span>
-            <button type="button" class="btn btn--ghost btn--sm btn-edit" data-id="${app.id}">编辑</button>
-          </div>`;
-        })
-        .join('')}
-    </div>`;
+  const sections = [];
+
+  if (upcomingDeadlines.length > 0) {
+    sections.push(`
+      <div class="reminders-panel__section">
+        <div class="reminders-panel__header">
+          <span class="reminders-panel__title">⏰ 待投递截止 (${upcomingDeadlines.length})</span>
+        </div>
+        <div class="reminders-panel__list">
+          ${upcomingDeadlines.map((app) => renderReminderCard(app, 'deadline')).join('')}
+        </div>
+      </div>`);
+  }
+
+  if (upcomingInterviews.length > 0) {
+    sections.push(`
+      <div class="reminders-panel__section">
+        <div class="reminders-panel__header">
+          <span class="reminders-panel__title">🔔 近期面试 (${upcomingInterviews.length})</span>
+        </div>
+        <div class="reminders-panel__list">
+          ${upcomingInterviews.map((app) => renderReminderCard(app, 'interview')).join('')}
+        </div>
+      </div>`);
+  }
+
+  panel.innerHTML = sections.join('');
 
   panel.querySelectorAll('.btn-edit').forEach((btn) => {
     btn.addEventListener('click', () => openForm(btn.dataset.id));
@@ -250,7 +343,9 @@ function renderTable() {
       const companyCell = app.link
         ? `<a class="link-external cell-company" href="${escapeAttr(app.link)}" target="_blank" rel="noopener">${escapeHtml(app.company)}</a>`
         : `<span class="cell-company">${escapeHtml(app.company)}</span>`;
-      const interviewCell = app.interviewDate
+      const interviewCell = app.status === 'pending' && app.deadlineDate
+        ? `<span class="cell-deadline${isDeadlineOverdue(app) ? ' cell-deadline--overdue' : isDeadlineSoon(app) ? ' cell-deadline--soon' : ''}">截止 ${formatDate(app.deadlineDate)}</span>`
+        : app.interviewDate
         ? `<span class="cell-interview${isInterviewSoon(app) ? ' cell-interview--soon' : ''}">${formatInterviewDateTime(app)}</span>`
         : '-';
 
@@ -290,7 +385,7 @@ function isInterviewSoon(app) {
 
 function getAppsForDate(dateKey) {
   return applications.filter(
-    (app) => app.date === dateKey || app.interviewDate === dateKey
+    (app) => app.date === dateKey || app.interviewDate === dateKey || app.deadlineDate === dateKey
   );
 }
 
@@ -346,6 +441,7 @@ function renderCalCell(y, m, d, otherMonth) {
   const apps = getAppsForDate(dateKey);
   const hasInterview = apps.some((a) => a.interviewDate === dateKey);
   const hasApply = apps.some((a) => a.date === dateKey);
+  const hasDeadline = apps.some((a) => a.status === 'pending' && a.deadlineDate === dateKey);
   const todayKey = toDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
   const isToday = dateKey === todayKey;
   const isSelected = dateKey === selectedCalDate;
@@ -353,6 +449,7 @@ function renderCalCell(y, m, d, otherMonth) {
   let dots = '';
   if (hasInterview) dots += '<i class="dot dot--interview"></i>';
   if (hasApply) dots += '<i class="dot dot--apply"></i>';
+  if (hasDeadline) dots += '<i class="dot dot--deadline"></i>';
 
   return `
     <div class="cal-day${otherMonth ? ' cal-day--other' : ''}${isToday ? ' cal-day--today' : ''}${isSelected ? ' cal-day--selected' : ''}${apps.length ? ' cal-day--has-events' : ''}"
@@ -385,9 +482,11 @@ function renderCalendarSidebar() {
       const status = getStatusInfo(app.status);
       const isInterview = app.interviewDate === selectedCalDate;
       const isApply = app.date === selectedCalDate;
+      const isDeadline = app.status === 'pending' && app.deadlineDate === selectedCalDate;
       let tags = '';
       if (isInterview) tags += `<span class="cal-event-tag cal-event-tag--interview">面试 ${app.interviewTime || ''}</span>`;
       if (isApply) tags += '<span class="cal-event-tag cal-event-tag--apply">投递</span>';
+      if (isDeadline) tags += '<span class="cal-event-tag cal-event-tag--deadline">待投递截止</span>';
 
       return `
       <div class="cal-event-card" data-id="${app.id}">
@@ -449,6 +548,12 @@ function populateStatusSelect() {
   ).join('');
 }
 
+function toggleFormFieldsByStatus() {
+  const isPending = $('#fieldStatus').value === 'pending';
+  $('#deadlineFields').hidden = !isPending;
+  $('#interviewFields').hidden = isPending;
+}
+
 function openForm(id = null) {
   const modal = $('#formModal');
   const form = $('#applicationForm');
@@ -470,6 +575,8 @@ function openForm(id = null) {
     $('#fieldInterviewDate').value = app.interviewDate || '';
     $('#fieldInterviewTime').value = app.interviewTime || '';
     $('#fieldReminder').value = String(app.reminderMinutes ?? 60);
+    $('#fieldDeadlineDate').value = app.deadlineDate || '';
+    $('#fieldDeadlineReminder').value = String(app.deadlineReminderMinutes ?? 1440);
     $('#fieldNotes').value = app.notes || '';
   } else {
     $('#modalTitle').textContent = '新增投递';
@@ -477,8 +584,10 @@ function openForm(id = null) {
     $('#fieldDate').value = new Date().toISOString().slice(0, 10);
     $('#fieldStatus').value = 'applied';
     $('#fieldReminder').value = '60';
+    $('#fieldDeadlineReminder').value = '1440';
   }
 
+  toggleFormFieldsByStatus();
   modal.showModal();
 }
 
@@ -490,18 +599,22 @@ function handleFormSubmit(e) {
   e.preventDefault();
 
   const id = $('#fieldId').value;
+  const status = $('#fieldStatus').value;
   const data = {
     company: $('#fieldCompany').value.trim(),
     position: $('#fieldPosition').value.trim(),
     platform: $('#fieldPlatform').value,
     date: $('#fieldDate').value,
-    status: $('#fieldStatus').value,
+    status,
     salary: $('#fieldSalary').value.trim(),
     location: $('#fieldLocation').value.trim(),
     link: $('#fieldLink').value.trim(),
-    interviewDate: $('#fieldInterviewDate').value,
-    interviewTime: $('#fieldInterviewTime').value,
-    reminderMinutes: parseInt($('#fieldReminder').value, 10) || 0,
+    interviewDate: status === 'pending' ? '' : $('#fieldInterviewDate').value,
+    interviewTime: status === 'pending' ? '' : $('#fieldInterviewTime').value,
+    reminderMinutes: status === 'pending' ? 0 : parseInt($('#fieldReminder').value, 10) || 0,
+    deadlineDate: status === 'pending' ? $('#fieldDeadlineDate').value : '',
+    deadlineReminderMinutes:
+      status === 'pending' ? parseInt($('#fieldDeadlineReminder').value, 10) || 0 : 0,
     notes: $('#fieldNotes').value.trim(),
     updatedAt: new Date().toISOString(),
   };
@@ -605,7 +718,7 @@ async function requestNotificationPermission() {
     return false;
   }
   if (Notification.permission === 'granted') {
-    alert('面试提醒已开启！到达设定时间前会收到浏览器通知。');
+    alert('提醒已开启！将在面试前和投递截止前收到浏览器通知。');
     return true;
   }
   if (Notification.permission === 'denied') {
@@ -614,10 +727,10 @@ async function requestNotificationPermission() {
   }
   const result = await Notification.requestPermission();
   if (result === 'granted') {
-    alert('面试提醒已开启！请保持浏览器标签页打开以接收提醒。');
+    alert('提醒已开启！请保持浏览器标签页打开以接收通知。');
     return true;
   }
-  alert('未授予通知权限，将无法收到面试提醒。');
+  alert('未授予通知权限，将无法收到提醒。');
   return false;
 }
 
@@ -627,24 +740,43 @@ function checkReminders() {
   const now = new Date();
 
   applications.forEach((app) => {
-    const minutes = app.reminderMinutes || 0;
-    if (!app.interviewDate || minutes <= 0) return;
+    const interviewMinutes = app.reminderMinutes || 0;
+    if (app.interviewDate && interviewMinutes > 0) {
+      const interviewDt = getInterviewDateTime(app);
+      if (interviewDt && interviewDt > now) {
+        const remindAt = new Date(interviewDt.getTime() - interviewMinutes * 60000);
+        const key = getReminderKey(app);
 
-    const interviewDt = getInterviewDateTime(app);
-    if (!interviewDt || interviewDt <= now) return;
+        if (now >= remindAt && now < interviewDt && !reminderSentIds.has(key)) {
+          const timeLabel = app.interviewTime || '待定';
+          new Notification('面试提醒', {
+            body: `${app.company} - ${app.position}\n面试时间：${formatDate(app.interviewDate)} ${timeLabel}`,
+            icon: 'icons/icon-192.png',
+            tag: key,
+          });
+          reminderSentIds.add(key);
+          saveReminderSent();
+        }
+      }
+    }
 
-    const remindAt = new Date(interviewDt.getTime() - minutes * 60000);
-    const key = getReminderKey(app);
+    const deadlineMinutes = app.deadlineReminderMinutes || 0;
+    if (app.status === 'pending' && app.deadlineDate && deadlineMinutes > 0) {
+      const deadlineDt = getDeadlineDateTime(app);
+      if (deadlineDt && deadlineDt > now) {
+        const remindAt = new Date(deadlineDt.getTime() - deadlineMinutes * 60000);
+        const key = getDeadlineReminderKey(app);
 
-    if (now >= remindAt && now < interviewDt && !reminderSentIds.has(key)) {
-      const timeLabel = app.interviewTime || '待定';
-      new Notification('面试提醒', {
-        body: `${app.company} - ${app.position}\n面试时间：${formatDate(app.interviewDate)} ${timeLabel}`,
-        icon: '📋',
-        tag: key,
-      });
-      reminderSentIds.add(key);
-      saveReminderSent();
+        if (now >= remindAt && now < deadlineDt && !reminderSentIds.has(key)) {
+          new Notification('投递截止提醒', {
+            body: `${app.company} - ${app.position}\n截止日期：${formatDate(app.deadlineDate)}，请尽快投递`,
+            icon: 'icons/icon-192.png',
+            tag: key,
+          });
+          reminderSentIds.add(key);
+          saveReminderSent();
+        }
+      }
     }
   });
 
@@ -698,6 +830,7 @@ function bindEvents() {
   $('#btnCloseModal').addEventListener('click', closeForm);
   $('#btnCancel').addEventListener('click', closeForm);
   $('#applicationForm').addEventListener('submit', handleFormSubmit);
+  $('#fieldStatus').addEventListener('change', toggleFormFieldsByStatus);
 
   $('#btnCloseDelete').addEventListener('click', closeDeleteConfirm);
   $('#btnCancelDelete').addEventListener('click', closeDeleteConfirm);

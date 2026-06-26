@@ -39,7 +39,7 @@
         </div>
       </div>
       <div class="header__actions">
-        <button type="button" class="btn btn--ghost" id="btnNotify" title="开启面试提醒">🔔 提醒</button>
+        <button type="button" class="btn btn--ghost" id="btnNotify" title="开启面试与截止提醒">🔔 提醒</button>
         <button type="button" class="btn btn--ghost" id="btnImport" title="导入数据">导入</button>
         <button type="button" class="btn btn--ghost" id="btnExport" title="导出数据">导出</button>
         <button type="button" class="btn btn--ghost" id="btnTheme" title="切换主题">🌙</button>
@@ -73,7 +73,7 @@
               <th>岗位</th>
               <th>平台</th>
               <th>投递日期</th>
-              <th>面试时间</th>
+              <th>截止/面试</th>
               <th>状态</th>
               <th>薪资</th>
               <th>备注</th>
@@ -108,6 +108,7 @@
         <div class="calendar__legend">
           <span class="legend-item"><i class="dot dot--interview"></i> 面试</span>
           <span class="legend-item"><i class="dot dot--apply"></i> 投递</span>
+          <span class="legend-item"><i class="dot dot--deadline"></i> 待投递截止</span>
         </div>
       </div>
       <aside class="calendar-sidebar">
@@ -171,25 +172,46 @@
             <span>岗位链接</span>
             <input type="url" id="fieldLink" placeholder="https://">
           </label>
-          <label class="form-field">
-            <span>面试日期</span>
-            <input type="date" id="fieldInterviewDate">
-          </label>
-          <label class="form-field">
-            <span>面试时间</span>
-            <input type="time" id="fieldInterviewTime">
-          </label>
-          <label class="form-field">
-            <span>面试提醒</span>
-            <select id="fieldReminder">
-              <option value="0">不提醒</option>
-              <option value="15">15 分钟前</option>
-              <option value="30">30 分钟前</option>
-              <option value="60" selected>1 小时前</option>
-              <option value="120">2 小时前</option>
-              <option value="1440">1 天前</option>
-            </select>
-          </label>
+          <div class="form-section" id="deadlineFields" hidden>
+            <label class="form-field">
+              <span>投递截止日期</span>
+              <input type="date" id="fieldDeadlineDate">
+            </label>
+            <label class="form-field">
+              <span>截止提醒</span>
+              <select id="fieldDeadlineReminder">
+                <option value="0">不提醒</option>
+                <option value="60">1 小时前</option>
+                <option value="120">2 小时前</option>
+                <option value="360">6 小时前</option>
+                <option value="720">12 小时前</option>
+                <option value="1440" selected>1 天前</option>
+                <option value="2880">2 天前</option>
+                <option value="4320">3 天前</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-section" id="interviewFields">
+            <label class="form-field">
+              <span>面试日期</span>
+              <input type="date" id="fieldInterviewDate">
+            </label>
+            <label class="form-field">
+              <span>面试时间</span>
+              <input type="time" id="fieldInterviewTime">
+            </label>
+            <label class="form-field">
+              <span>面试提醒</span>
+              <select id="fieldReminder">
+                <option value="0">不提醒</option>
+                <option value="15">15 分钟前</option>
+                <option value="30">30 分钟前</option>
+                <option value="60" selected>1 小时前</option>
+                <option value="120">2 小时前</option>
+                <option value="1440">1 天前</option>
+              </select>
+            </label>
+          </div>
           <label class="form-field form-field--full">
             <span>备注</span>
             <textarea id="fieldNotes" rows="3" placeholder="面试安排、联系人、个人感受等..."></textarea>
