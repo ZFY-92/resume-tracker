@@ -643,6 +643,28 @@ body {
 .stat-card--rejected .stat-card__count { color: var(--status-rejected); }
 .stat-card--giveup .stat-card__count { color: var(--status-giveup); }
 
+.list-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.list-filter-bar__label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.list-filter-bar__count {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
 /* Toolbar */
 .toolbar {
   display: flex;

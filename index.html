@@ -65,6 +65,7 @@
     </section>
 
     <main class="main" id="listView">
+      <div class="list-filter-bar" id="listFilterBar"></div>
       <div class="table-wrap">
         <table class="table" id="applicationsTable">
           <thead>
@@ -84,8 +85,8 @@
         </table>
         <div class="empty-state" id="emptyState" hidden>
           <div class="empty-state__icon">📭</div>
-          <h3>还没有投递记录</h3>
-          <p>点击「新增投递」开始记录你的求职进度</p>
+          <h3 id="emptyStateTitle">还没有投递记录</h3>
+          <p id="emptyStateDesc">点击「新增投递」开始记录你的求职进度</p>
           <button type="button" class="btn btn--primary" id="btnAddEmpty">+ 新增投递</button>
         </div>
       </div>

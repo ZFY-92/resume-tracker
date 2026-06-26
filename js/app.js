@@ -37,6 +37,10 @@ function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     applications = raw ? JSON.parse(raw) : [];
+    applications = applications.map((app) => ({
+      ...app,
+      status: app.status || 'applied',
+    }));
   } catch {
     applications = [];
   }
@@ -262,6 +266,40 @@ function renderRemindersPanel() {
   });
 }
 
+function getFilterLabel(status = filterStatus) {
+  if (status === 'all') return '全部';
+  return getStatusInfo(status).label;
+}
+
+function setFilterStatus(status) {
+  filterStatus = status;
+  if (currentView !== 'list') {
+    switchView('list');
+  }
+  render();
+  requestAnimationFrame(() => {
+    $('#listFilterBar')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
+
+function renderListFilterBar() {
+  const bar = $('#listFilterBar');
+  if (!bar) return;
+
+  if (currentView !== 'list') {
+    bar.hidden = true;
+    return;
+  }
+
+  bar.hidden = false;
+  const filtered = getFilteredApplications();
+  const label = filterStatus === 'all' ? '全部投递记录' : `${getFilterLabel()}记录`;
+
+  bar.innerHTML = `
+    <span class="list-filter-bar__label">${label}</span>
+    <span class="list-filter-bar__count">共 ${filtered.length} 条</span>`;
+}
+
 function renderStats() {
   const panel = $('#statsPanel');
   const counts = { all: applications.length };
@@ -286,15 +324,11 @@ function renderStats() {
     .join('');
 
   panel.querySelectorAll('.stat-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      filterStatus = card.dataset.status;
-      render();
-    });
+    card.addEventListener('click', () => setFilterStatus(card.dataset.status));
     card.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        filterStatus = card.dataset.status;
-        render();
+        setFilterStatus(card.dataset.status);
       }
     });
   });
@@ -315,27 +349,38 @@ function renderStatusFilters() {
     .join('');
 
   container.querySelectorAll('.filter-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      filterStatus = chip.dataset.status;
-      render();
-    });
+    chip.addEventListener('click', () => setFilterStatus(chip.dataset.status));
   });
 }
 
 function renderTable() {
   const tbody = $('#applicationsBody');
   const emptyState = $('#emptyState');
+  const emptyTitle = $('#emptyStateTitle');
+  const emptyDesc = $('#emptyStateDesc');
   const table = $('#applicationsTable');
   const filtered = getFilteredApplications();
 
   if (applications.length === 0) {
     table.hidden = true;
     emptyState.hidden = false;
+    emptyTitle.textContent = '还没有投递记录';
+    emptyDesc.textContent = '点击「新增投递」开始记录你的求职进度';
+    tbody.innerHTML = '';
+    return;
+  }
+
+  if (filtered.length === 0) {
+    table.hidden = true;
+    emptyState.hidden = false;
+    emptyTitle.textContent = `暂无「${getFilterLabel()}」记录`;
+    emptyDesc.textContent = '点击上方其他状态卡片查看，或新增一条投递记录';
+    tbody.innerHTML = '';
     return;
   }
 
   table.hidden = false;
-  emptyState.hidden = filtered.length > 0;
+  emptyState.hidden = true;
 
   tbody.innerHTML = filtered
     .map((app) => {
@@ -525,6 +570,7 @@ function render() {
   renderRemindersPanel();
   renderStats();
   renderStatusFilters();
+  renderListFilterBar();
   renderTable();
   if (currentView === 'calendar') {
     renderCalendar();
@@ -838,6 +884,7 @@ function bindEvents() {
 
   $('#searchInput').addEventListener('input', (e) => {
     searchQuery = e.target.value.trim();
+    renderListFilterBar();
     renderTable();
   });
 
