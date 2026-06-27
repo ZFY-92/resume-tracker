@@ -944,16 +944,83 @@ function confirmDelete() {
   render();
 }
 
-function exportData() {
-  const blob = new Blob([JSON.stringify(applications, null, 2)], {
-    type: 'application/json',
-  });
+function downloadBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `简历投递记录_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function escapeCsvCell(value) {
+  const text = value == null ? '' : String(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function exportData() {
+  downloadBlob(
+    JSON.stringify(applications, null, 2),
+    `简历投递记录_${new Date().toISOString().slice(0, 10)}.json`,
+    'application/json'
+  );
+}
+
+function exportDataAsExcel() {
+  if (applications.length === 0) {
+    alert('暂无记录可导出');
+    return;
+  }
+
+  const headers = [
+    '公司名称',
+    '岗位名称',
+    '投递平台',
+    '投递日期',
+    '当前状态',
+    '薪资范围',
+    '工作地点',
+    '岗位链接',
+    '投递截止日期',
+    '截止提醒',
+    '面试日期',
+    '面试时间',
+    '面试提醒',
+    '备注',
+  ];
+
+  const rows = [...applications]
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .map((app) => [
+      app.company,
+      app.position,
+      app.platform || '',
+      app.date,
+      getStatusInfo(app.status).label,
+      app.salary || '',
+      app.location || '',
+      app.link || '',
+      app.deadlineDate || '',
+      app.deadlineDate ? formatReminderLabel(app.deadlineReminderMinutes) : '',
+      app.interviewDate || '',
+      app.interviewTime || '',
+      app.interviewDate ? formatReminderLabel(app.reminderMinutes) : '',
+      app.notes || '',
+    ]);
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(','))
+    .join('\r\n');
+
+  downloadBlob(
+    `\uFEFF${csv}`,
+    `简历投递记录_${new Date().toISOString().slice(0, 10)}.csv`,
+    'text/csv;charset=utf-8'
+  );
 }
 
 function importData(file) {
@@ -1131,6 +1198,7 @@ function bindEvents() {
   });
 
   $('#btnExport').addEventListener('click', exportData);
+  $('#btnExportExcel').addEventListener('click', exportDataAsExcel);
 
   $('#btnImport').addEventListener('click', () => $('#importFile').click());
   $('#importFile').addEventListener('change', (e) => {
