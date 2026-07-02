@@ -1,9 +1,10 @@
 const INSTALL_DISMISS_KEY = 'pwa-install-dismissed';
-const UPDATE_ATTEMPTS_PREFIX = 'resume-update-attempts-';
-const APP_VERSION = 'v16';
+const VERSION_KEY = 'resume-tracker-app-version';
+const APP_VERSION = '17';
 
 let deferredPrompt = null;
-let refreshing = false;
+let swRegistration = null;
+let updateCheckStatus = { state: 'idle', remoteVersion: null, message: '已是最新' };
 
 function isStandalone() {
   return (
@@ -23,190 +24,139 @@ function canRegisterServiceWorker() {
   );
 }
 
-function setUpdateStatus(text) {
-  const el = document.getElementById('updateStatus');
-  if (el) el.textContent = text;
+function updateVersionDisplay() {
+  const versionEl = document.getElementById('appVersion');
+  if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 }
 
-function updateVersionDisplay(version = APP_VERSION) {
-  const el = document.getElementById('appVersion');
-  if (el) el.textContent = version;
-}
+function renderUpdateUI() {
+  const statusEl = document.getElementById('updateStatus');
+  const reloadBtn = document.getElementById('btnReloadUpdate');
+  const checkBtn = document.getElementById('btnCheckUpdate');
+  const banner = document.getElementById('updateBanner');
+  const bannerText = document.getElementById('updateBannerText');
 
-function getAppBaseUrl() {
-  const path = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
-  return `${window.location.origin}${path || ''}/`;
-}
-
-function activateWaitingWorker(registration) {
-  if (registration.waiting) {
-    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-    return true;
+  if (statusEl) {
+    statusEl.textContent = updateCheckStatus.message;
   }
-  return false;
+  if (reloadBtn) {
+    reloadBtn.hidden = updateCheckStatus.state !== 'available';
+  }
+  if (checkBtn) {
+    checkBtn.disabled = updateCheckStatus.state === 'checking';
+  }
+  if (banner) {
+    banner.hidden = updateCheckStatus.state !== 'available';
+  }
+  if (bannerText && updateCheckStatus.state === 'available') {
+    bannerText.textContent = updateCheckStatus.remoteVersion
+      ? `发现新版本 v${updateCheckStatus.remoteVersion}（当前 v${APP_VERSION}），请刷新`
+      : '发现新版本，请刷新页面';
+  }
+}
+
+function showUpdateAvailable(remoteVersion, message) {
+  updateCheckStatus = {
+    state: 'available',
+    remoteVersion,
+    message: message || (remoteVersion ? `发现 v${remoteVersion}，请刷新` : '发现新版本，请刷新'),
+  };
+  renderUpdateUI();
 }
 
 async function fetchRemoteVersion() {
-  try {
-    const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.version || null;
-  } catch {
-    return null;
-  }
+  const res = await fetch(`./service-worker.js?v=${Date.now()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('network');
+  const text = await res.text();
+  const match = text.match(/APP_VERSION = '(\d+)'/);
+  if (!match) throw new Error('parse');
+  return match[1];
 }
 
-function showManualUpdateGuide(localVersion, remoteVersion) {
-  const url = `${getAppBaseUrl()}?appv=${Date.now()}`;
-  setUpdateStatus(`需手动更新 ${remoteVersion}`);
-  alert(
-    `自动更新未成功，当前仍为 ${localVersion}，最新为 ${remoteVersion}。\n\n请按以下步骤操作：\n1. 删除手机桌面上的旧图标\n2. 用 Safari 打开：\n${url}\n3. 确认版本号正确后，重新「添加到主屏幕」`
-  );
-}
-
-async function clearAppCachesAndReload(remoteVersion) {
-  const attemptKey = `${UPDATE_ATTEMPTS_PREFIX}${remoteVersion || 'unknown'}`;
-  const attempts = parseInt(sessionStorage.getItem(attemptKey) || '0', 10) + 1;
-  sessionStorage.setItem(attemptKey, String(attempts));
-
-  if (attempts > 2) {
-    showManualUpdateGuide(window.APP_VERSION || APP_VERSION, remoteVersion);
-    return false;
-  }
-
-  refreshing = true;
-  setUpdateStatus('正在更新…');
-
-  try {
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((key) => caches.delete(key)));
-    }
-
-    const registration = await navigator.serviceWorker.getRegistration();
-    if (registration) {
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-      await registration.unregister();
-    }
-  } catch (err) {
-    console.warn('Clear cache failed:', err);
-  }
-
-  const base = `${window.location.pathname}${window.location.search}`;
-  const separator = base.includes('?') ? '&' : '?';
-  window.location.replace(`${base}${separator}appv=${Date.now()}`);
-  return true;
-}
-
-async function runServiceWorkerUpdate(manual) {
-  const registration = await navigator.serviceWorker.getRegistration();
-  if (!registration) {
-    if (manual) setUpdateStatus('未启用离线缓存');
-    return { updated: false, message: '未注册' };
-  }
-
-  await registration.update();
-
-  if (activateWaitingWorker(registration)) {
-    if (manual) setUpdateStatus('正在更新…');
-    return { updated: true, message: '更新中' };
-  }
-
-  if (registration.installing) {
-    await new Promise((resolve) => {
-      registration.installing.addEventListener('statechange', function onStateChange() {
-        if (this.state === 'installed') {
-          this.removeEventListener('statechange', onStateChange);
-          if (navigator.serviceWorker.controller && registration.waiting) {
-            activateWaitingWorker(registration);
-          }
-          resolve();
-        }
-      });
-    });
-    if (manual) setUpdateStatus('正在更新…');
-    return { updated: true, message: '更新中' };
-  }
-
-  return { updated: false, message: '无 waiting worker' };
-}
-
-async function checkForAppUpdate(manual = false) {
+async function checkForAppUpdate(options = {}) {
   if (!canRegisterServiceWorker()) {
-    if (manual) alert('当前环境不支持自动更新，请用浏览器打开网址后刷新。');
-    return { updated: false, message: '不支持' };
+    if (!options.silent) alert('当前环境不支持自动更新，请用浏览器打开网址后刷新。');
+    return;
   }
 
-  if (manual) setUpdateStatus('检查中…');
-
-  const localVersion = window.APP_VERSION || APP_VERSION;
-  const remoteVersion = await fetchRemoteVersion();
-
-  if (remoteVersion && remoteVersion !== localVersion) {
-    setUpdateStatus(`发现 ${remoteVersion}`);
-
-    if (manual) {
-      const ok = window.confirm(
-        `发现新版本 ${remoteVersion}（当前 ${localVersion}）。\n\n是否立即清缓存并更新？\n\n若更新失败，请按提示用 Safari 重新打开。`
-      );
-      if (ok) {
-        const started = await clearAppCachesAndReload(remoteVersion);
-        return { updated: started, message: started ? '更新中' : '需手动更新' };
-      }
-      return { updated: false, message: '已取消' };
-    }
-
-    return runServiceWorkerUpdate(false);
-  }
-
-  if (remoteVersion === localVersion) {
-    const attemptKey = `${UPDATE_ATTEMPTS_PREFIX}${remoteVersion}`;
-    sessionStorage.removeItem(attemptKey);
-  }
+  updateCheckStatus = { state: 'checking', remoteVersion: null, message: '检查中…' };
+  renderUpdateUI();
 
   try {
-    const swResult = await runServiceWorkerUpdate(manual);
-    if (swResult.updated) return swResult;
+    if (swRegistration) await swRegistration.update();
+    const remoteVersion = await fetchRemoteVersion();
+    const hasWaitingWorker = !!swRegistration?.waiting;
+    const isNewer = Number(remoteVersion) > Number(APP_VERSION);
 
-    if (manual) {
-      setUpdateStatus('已是最新');
-      alert(`当前已是最新版本（${localVersion}）`);
+    if (isNewer || hasWaitingWorker) {
+      showUpdateAvailable(
+        remoteVersion,
+        isNewer
+          ? `发现 v${remoteVersion}（当前 v${APP_VERSION}）`
+          : `新版本 v${remoteVersion} 已就绪`
+      );
+      if (!options.silent) {
+        alert(`发现新版本 v${remoteVersion}，请点击顶部「立即刷新」。`);
+      }
     } else {
-      setUpdateStatus('已是最新');
+      updateCheckStatus = {
+        state: 'latest',
+        remoteVersion,
+        message: `已是最新（v${APP_VERSION}）`,
+      };
+      if (!options.silent) alert(`当前已是最新版本（v${APP_VERSION}）`);
     }
-    return { updated: false, message: '已是最新' };
   } catch {
-    if (manual) {
-      setUpdateStatus('检查失败');
-      alert('检查更新失败，请检查网络后重试');
-    }
-    return { updated: false, message: '失败' };
+    updateCheckStatus = {
+      state: 'error',
+      remoteVersion: null,
+      message: '检查失败',
+    };
+    if (!options.silent) alert('检查更新失败，请检查网络后重试');
   }
+
+  renderUpdateUI();
+}
+
+function checkAppVersion() {
+  const stored = localStorage.getItem(VERSION_KEY);
+  if (stored && stored !== APP_VERSION) {
+    showUpdateAvailable(APP_VERSION, `已加载 v${APP_VERSION}，建议刷新`);
+  }
+  localStorage.setItem(VERSION_KEY, APP_VERSION);
 }
 
 function registerServiceWorker() {
   if (!canRegisterServiceWorker()) return;
 
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
+  navigator.serviceWorker
+    .register(`./service-worker.js?v=${APP_VERSION}`)
+    .then((reg) => {
+      swRegistration = reg;
+      const checkUpdate = () => reg.update().catch(() => {});
+      checkUpdate();
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkUpdate();
+      });
 
-  window.addEventListener('load', () => {
-    updateVersionDisplay();
-    navigator.serviceWorker
-      .register('./service-worker.js')
-      .then((registration) => {
-        setUpdateStatus('已是最新');
-        checkForAppUpdate(false);
-        return registration;
-      })
-      .catch(() => {});
-  });
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        fetchRemoteVersion()
+          .then((remoteVersion) => showUpdateAvailable(remoteVersion, '新版本已就绪，请刷新'))
+          .catch(() => showUpdateAvailable(null, '新版本已就绪，请刷新'));
+      }
+
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing;
+        worker?.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            fetchRemoteVersion()
+              .then((remoteVersion) => showUpdateAvailable(remoteVersion, '新版本已就绪，请刷新'))
+              .catch(() => showUpdateAvailable(null, '新版本已就绪，请刷新'));
+          }
+        });
+      });
+    })
+    .catch(() => {});
 }
 
 function showInstallBanner() {
@@ -258,24 +208,23 @@ function bindInstallEvents() {
     hideInstallBanner(true);
   });
 
-  const btnInstall = document.getElementById('btnInstall');
-  const btnDismiss = document.getElementById('btnDismissInstall');
-
-  if (btnInstall) btnInstall.addEventListener('click', promptInstall);
-  if (btnDismiss) btnDismiss.addEventListener('click', () => hideInstallBanner(true));
+  document.getElementById('btnInstall')?.addEventListener('click', promptInstall);
+  document.getElementById('btnDismissInstall')?.addEventListener('click', () => hideInstallBanner(true));
 
   if (isIOS() && !isStandalone()) {
     setTimeout(showInstallBanner, 800);
   }
 
-  const btnCheckUpdate = document.getElementById('btnCheckUpdate');
-  if (btnCheckUpdate) {
-    btnCheckUpdate.addEventListener('click', () => checkForAppUpdate(true));
-  }
+  document.getElementById('btnCheckUpdate')?.addEventListener('click', () => checkForAppUpdate());
+  document.getElementById('btnReloadUpdate')?.addEventListener('click', () => window.location.reload());
+  document.getElementById('btnReloadApp')?.addEventListener('click', () => window.location.reload());
 }
 
 window.checkForAppUpdate = checkForAppUpdate;
 window.APP_VERSION = APP_VERSION;
 
+updateVersionDisplay();
+checkAppVersion();
 registerServiceWorker();
 bindInstallEvents();
+renderUpdateUI();

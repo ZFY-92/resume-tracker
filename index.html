@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=17">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -27,6 +27,11 @@
         <button type="button" class="btn btn--ghost btn--sm" id="btnDismissInstall">知道了</button>
       </div>
     </div>
+  </div>
+
+  <div class="update-banner" id="updateBanner" hidden>
+    <span id="updateBannerText">发现新版本，请刷新页面</span>
+    <button type="button" class="btn btn--primary btn--sm" id="btnReloadApp">立即刷新</button>
   </div>
 
   <div class="app">
@@ -181,10 +186,15 @@
             <span class="settings-item__label">检查更新</span>
             <span class="settings-item__value" id="updateStatus">已是最新</span>
           </button>
+          <button type="button" class="settings-item" id="btnReloadUpdate" hidden>
+            <span class="settings-item__icon">⬆️</span>
+            <span class="settings-item__label">立即刷新应用</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
           <div class="settings-item settings-item--static">
             <span class="settings-item__icon">📦</span>
             <span class="settings-item__label">当前版本</span>
-            <span class="settings-item__value" id="appVersion">v16</span>
+            <span class="settings-item__value" id="appVersion">v17</span>
           </div>
         </div>
         <div class="settings-group">
@@ -418,9 +428,9 @@
     </div>
   </dialog>
 
-  <script src="js/supabase-config.js"></script>
-  <script src="js/sync.js"></script>
-  <script src="js/pwa.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/supabase-config.js?v=17"></script>
+  <script src="js/sync.js?v=17"></script>
+  <script src="js/pwa.js?v=17"></script>
+  <script src="js/app.js?v=17"></script>
 </body>
 </html>

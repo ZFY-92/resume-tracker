@@ -1,90 +1,107 @@
-const CACHE_NAME = 'resume-tracker-v16';
+const APP_VERSION = '17';
+const CACHE_NAME = `resume-tracker-v${APP_VERSION}`;
 const ASSETS = [
+  './',
   './index.html',
-  './css/style.css',
-  './js/app.js',
-  './js/pwa.js',
-  './js/sync.js',
-  './js/supabase-config.js',
-  './version.json',
+  `./css/style.css?v=${APP_VERSION}`,
+  `./js/app.js?v=${APP_VERSION}`,
+  `./js/pwa.js?v=${APP_VERSION}`,
+  `./js/sync.js?v=${APP_VERSION}`,
+  `./js/supabase-config.js?v=${APP_VERSION}`,
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  `./service-worker.js?v=${APP_VERSION}`,
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+function isAppShell(url) {
+  return (
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.json') ||
+    url.pathname.endsWith('.webmanifest') ||
+    url.pathname.endsWith('/')
   );
+}
+
+function normalizeAppShellRequest(request) {
+  const url = new URL(request.url);
+  if (url.pathname.endsWith('/css/style.css')) {
+    return `./css/style.css?v=${APP_VERSION}`;
+  }
+  if (url.pathname.endsWith('/js/app.js')) {
+    return `./js/app.js?v=${APP_VERSION}`;
+  }
+  if (url.pathname.endsWith('/js/pwa.js')) {
+    return `./js/pwa.js?v=${APP_VERSION}`;
+  }
+  if (url.pathname.endsWith('/js/sync.js')) {
+    return `./js/sync.js?v=${APP_VERSION}`;
+  }
+  if (url.pathname.endsWith('/js/supabase-config.js')) {
+    return `./js/supabase-config.js?v=${APP_VERSION}`;
+  }
+  if (url.pathname.endsWith('/service-worker.js')) {
+    return `./service-worker.js?v=${APP_VERSION}`;
+  }
+  if (url.pathname.endsWith('/index.html') || url.pathname.endsWith('/')) {
+    return './index.html';
+  }
+  return request.url;
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      )
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
-function shouldNetworkFirst(request) {
-  const path = new URL(request.url).pathname;
-  return (
-    request.mode === 'navigate' ||
-    path.endsWith('.html') ||
-    path.endsWith('.css') ||
-    path.endsWith('.js') ||
-    path.endsWith('.json') ||
-    path.endsWith('.webmanifest')
-  );
-}
-
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  if (!event.request.url.startsWith(self.location.origin)) return;
 
-  if (shouldNetworkFirst(event.request)) {
-    event.respondWith(networkFirst(event.request));
+  const url = new URL(event.request.url);
+  if (!url.origin.startsWith(self.location.origin)) return;
+
+  if (isAppShell(url)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            const cacheKey = normalizeAppShellRequest(event.request);
+            caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches
+            .match(normalizeAppShellRequest(event.request))
+            .then((cached) => cached || caches.match(event.request))
+        )
+    );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    })
+    caches.match(event.request).then(
+      (cached) =>
+        cached ||
+        fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+    )
   );
 });
-
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    if (request.mode === 'navigate') {
-      return caches.match('./index.html');
-    }
-    throw new Error('Network error and no cache');
-  }
-}
