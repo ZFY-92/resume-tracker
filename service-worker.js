@@ -1,4 +1,4 @@
-const APP_VERSION = '17';
+const APP_VERSION = '18';
 const CACHE_NAME = `resume-tracker-v${APP_VERSION}`;
 const ASSETS = [
   './',

@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/style.css?v=18">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -194,7 +194,7 @@
           <div class="settings-item settings-item--static">
             <span class="settings-item__icon">📦</span>
             <span class="settings-item__label">当前版本</span>
-            <span class="settings-item__value" id="appVersion">v17</span>
+            <span class="settings-item__value" id="appVersion">v18</span>
           </div>
         </div>
         <div class="settings-group">
@@ -396,16 +396,32 @@
         <button type="button" class="btn btn--ghost btn--sm" id="btnCopySyncKey">复制密钥</button>
         <button type="button" class="btn btn--ghost btn--sm" id="btnCopySyncCodeInModal">复制同步码</button>
       </div>
-      <label class="form-field" id="syncCodePreviewWrap" hidden>
-        <span>最新同步码（RT1: 开头）</span>
-        <textarea id="syncCodePreview" rows="3" readonly spellcheck="false"></textarea>
-      </label>
     </div>
     <div class="modal__footer">
       <button type="button" class="btn btn--ghost" id="btnCancelSync">取消</button>
       <button type="button" class="btn btn--danger" id="btnDisableCloud" hidden>关闭自动同步</button>
       <button type="button" class="btn btn--ghost" id="btnEnableCloud" hidden>开启自动同步</button>
       <button type="button" class="btn btn--primary" id="btnSaveSyncKey">保存密钥</button>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="syncCodeModal">
+    <div class="modal__header">
+      <h2>同步码</h2>
+      <button type="button" class="modal__close" id="btnCloseSyncCode" aria-label="关闭">&times;</button>
+    </div>
+    <div class="modal__body">
+      <p class="sync-hint">同步码是以 <strong>RT1:</strong> 开头的长文本。手机请点「复制」或「分享到微信」，不要从弹窗里截取部分文字。</p>
+      <p class="sync-hint sync-hint--status" id="syncCodeCopyStatus"></p>
+      <label class="form-field">
+        <span>完整同步码</span>
+        <textarea id="syncCodeExportText" rows="8" readonly spellcheck="false"></textarea>
+      </label>
+    </div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--ghost" id="btnCloseSyncCodeFooter">关闭</button>
+      <button type="button" class="btn btn--ghost" id="btnShareSyncCode">分享到微信</button>
+      <button type="button" class="btn btn--primary" id="btnCopySyncCodeConfirm">复制</button>
     </div>
   </dialog>
 
@@ -428,9 +444,9 @@
     </div>
   </dialog>
 
-  <script src="js/supabase-config.js?v=17"></script>
-  <script src="js/sync.js?v=17"></script>
-  <script src="js/pwa.js?v=17"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/supabase-config.js?v=18"></script>
+  <script src="js/sync.js?v=18"></script>
+  <script src="js/pwa.js?v=18"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>

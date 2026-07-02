@@ -390,13 +390,104 @@
     return `${SYNC_CODE_PREFIX}${bufferToBase64(new TextEncoder().encode(payloadJson))}`;
   }
 
-  async function copyText(text, successMessage) {
+  async function copyFromTextarea(textarea) {
+    if (!textarea) return false;
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
     try {
-      await navigator.clipboard.writeText(text);
-      alert(successMessage);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textarea.value);
+        return true;
+      }
     } catch {
-      prompt('请手动复制：', text);
+      /* fall through */
     }
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyStringWithFallback(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      /* fall through */
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.width = '1px';
+    ta.style.height = '1px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function setSyncCodeStatus(message) {
+    const el = document.getElementById('syncCodeCopyStatus');
+    if (el) el.textContent = message || '';
+  }
+
+  function openSyncCodeModal(code) {
+    const modal = document.getElementById('syncCodeModal');
+    const textarea = document.getElementById('syncCodeExportText');
+    if (!modal || !textarea) {
+      alert('同步码弹窗加载失败，请刷新页面后重试');
+      return;
+    }
+    textarea.value = code;
+    setSyncCodeStatus('');
+    showDialog(modal);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.select();
+    });
+  }
+
+  function closeSyncCodeModal() {
+    hideDialog(document.getElementById('syncCodeModal'));
+  }
+
+  async function shareSyncCode(text) {
+    if (!navigator.share) return false;
+    try {
+      await navigator.share({
+        title: '简历投递同步码',
+        text,
+      });
+      return true;
+    } catch (err) {
+      if (err?.name === 'AbortError') return true;
+      return false;
+    }
+  }
+
+  async function copyText(text, successMessage) {
+    const ok = await copyStringWithFallback(text);
+    if (ok) {
+      alert(successMessage);
+      return true;
+    }
+    alert('无法自动复制，请长按文本全选后手动复制。');
+    return false;
   }
 
   async function exportSyncCode() {
@@ -414,14 +505,8 @@
 
     try {
       const code = await buildSyncCode(syncKey);
-      const preview = document.getElementById('syncCodePreview');
-      const previewWrap = document.getElementById('syncCodePreviewWrap');
-      if (preview) preview.value = code;
-      if (previewWrap) previewWrap.hidden = false;
-      await copyText(
-        code,
-        '同步码已复制！\n\n这是一串以 RT1: 开头的长文本（不是 32 位密钥）。\n\n另一台设备需先保存相同密钥，再「粘贴同步码」。'
-      );
+      openSyncCodeModal(code);
+      setSyncCodeStatus('请点「复制」或「分享到微信」发送完整同步码');
     } catch (err) {
       alert(err.message || '生成同步码失败');
     }
@@ -545,6 +630,22 @@
     });
     document.getElementById('btnCopySyncKey')?.addEventListener('click', copySyncKey);
     document.getElementById('btnCopySyncCodeInModal')?.addEventListener('click', exportSyncCode);
+    document.getElementById('btnCopySyncCodeConfirm')?.addEventListener('click', async () => {
+      const textarea = document.getElementById('syncCodeExportText');
+      const ok = await copyFromTextarea(textarea);
+      setSyncCodeStatus(ok ? '已复制完整同步码，可去另一台设备粘贴' : '复制失败，请长按上方文本框 → 全选 → 拷贝');
+    });
+    document.getElementById('btnShareSyncCode')?.addEventListener('click', async () => {
+      const text = document.getElementById('syncCodeExportText')?.value;
+      if (!text) return;
+      const ok = await shareSyncCode(text);
+      setSyncCodeStatus(ok ? '已打开分享，请发送到微信文件传输助手' : '当前浏览器不支持分享，请点「复制」');
+    });
+    document.getElementById('btnCloseSyncCode')?.addEventListener('click', closeSyncCodeModal);
+    document.getElementById('btnCloseSyncCodeFooter')?.addEventListener('click', closeSyncCodeModal);
+    document.getElementById('syncCodeModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'syncCodeModal') closeSyncCodeModal();
+    });
     document.getElementById('btnSaveSyncKey')?.addEventListener('click', () => {
       const input = document.getElementById('syncKeyInput');
       try {

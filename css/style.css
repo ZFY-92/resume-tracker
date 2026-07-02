@@ -1388,6 +1388,19 @@ body:has(dialog[open]) .tab-bar {
   font-style: normal;
 }
 
+.sync-hint--status {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+#syncCodeExportText {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  word-break: break-all;
+  min-height: 160px;
+}
+
 .form-field input,
 .form-field select,
 .form-field textarea {
