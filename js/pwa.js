@@ -1,5 +1,5 @@
 const INSTALL_DISMISS_KEY = 'pwa-install-dismissed';
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 
 let deferredPrompt = null;
 let refreshing = false;

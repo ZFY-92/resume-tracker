@@ -993,6 +993,15 @@ body {
 }
 
 /* Modal */
+dialog.modal {
+  display: none;
+}
+
+dialog.modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+
 .modal {
   border: none;
   border-radius: var(--radius);

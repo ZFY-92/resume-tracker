@@ -77,11 +77,59 @@
     return `${'•'.repeat(Math.min(key.length - 4, 12))}${key.slice(-4)}`;
   }
 
-  function initCloudClient() {
-    if (!isCloudConfigured() || typeof supabase === 'undefined') return false;
-    if (supabaseClient) return true;
+  function showDialog(modal) {
+    if (!modal) return;
+    try {
+      if (typeof modal.showModal === 'function') {
+        if (!modal.open) modal.showModal();
+        return;
+      }
+    } catch (err) {
+      console.warn('showModal failed:', err);
+    }
+    modal.setAttribute('open', '');
+  }
+
+  function hideDialog(modal) {
+    if (!modal) return;
+    try {
+      if (typeof modal.close === 'function' && modal.open) {
+        modal.close();
+        return;
+      }
+    } catch (err) {
+      console.warn('close failed:', err);
+    }
+    modal.removeAttribute('open');
+  }
+
+  async function loadSupabaseClient() {
+    if (!isCloudConfigured()) return null;
+    if (supabaseClient) return supabaseClient;
+
+    if (typeof supabase !== 'undefined') {
+      supabaseClient = supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
+      return supabaseClient;
+    }
+
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Supabase SDK 加载失败'));
+      document.head.appendChild(script);
+    });
+
+    if (typeof supabase === 'undefined') return null;
     supabaseClient = supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
-    return true;
+    return supabaseClient;
+  }
+
+  function initCloudClient() {
+    if (!isCloudConfigured()) return false;
+    if (supabaseClient) return true;
+    loadSupabaseClient().catch(() => {});
+    return false;
   }
 
   function validateSyncKey(raw) {
@@ -218,15 +266,17 @@
 
   async function runCloudSync({ forcePush = false } = {}) {
     if (!isCloudEnabled() || syncing) return { changed: false };
-    if (!initCloudClient()) {
-      setStatus('error');
-      return { changed: false, error: '未配置 Supabase' };
-    }
 
     syncing = true;
     setStatus('syncing');
 
     try {
+      const client = await loadSupabaseClient();
+      if (!client) {
+        setStatus('error');
+        return { changed: false, error: '未配置 Supabase' };
+      }
+      supabaseClient = client;
       const syncKey = getSyncKey();
       const localData = callbacks.getData ? callbacks.getData() : { applications: [], reminderSentIds: [] };
       const remoteData = await pullRemote(syncKey);
@@ -284,7 +334,12 @@
       );
       return false;
     }
-    if (!initCloudClient()) {
+
+    try {
+      const client = await loadSupabaseClient();
+      if (!client) throw new Error('SDK 加载失败');
+      supabaseClient = client;
+    } catch {
       alert('Supabase 初始化失败，请检查配置。');
       return false;
     }
@@ -384,26 +439,33 @@
 
   function openSyncModal() {
     const modal = document.getElementById('syncModal');
-    if (!modal) return;
+    if (!modal) {
+      alert('同步功能加载失败，请刷新页面或检查更新。');
+      return;
+    }
     const input = document.getElementById('syncKeyInput');
     if (input) input.value = getSyncKey();
     updateSettingsUI();
-    modal.showModal();
+    showDialog(modal);
   }
 
   function closeSyncModal() {
-    document.getElementById('syncModal')?.close();
+    hideDialog(document.getElementById('syncModal'));
   }
 
   function openPasteModal() {
     const modal = document.getElementById('pasteSyncModal');
     const textarea = document.getElementById('pasteSyncInput');
+    if (!modal) {
+      alert('同步功能加载失败，请刷新页面或检查更新。');
+      return;
+    }
     if (textarea) textarea.value = '';
-    modal?.showModal();
+    showDialog(modal);
   }
 
   function closePasteModal() {
-    document.getElementById('pasteSyncModal')?.close();
+    hideDialog(document.getElementById('pasteSyncModal'));
   }
 
   async function copySyncKey() {
@@ -417,7 +479,12 @@
     }
   }
 
+  let uiBound = false;
+
   function bindUI() {
+    if (uiBound) return;
+    uiBound = true;
+
     document.getElementById('btnSyncSetup')?.addEventListener('click', openSyncModal);
     document.getElementById('btnSyncNow')?.addEventListener('click', async () => {
       const result = await runCloudSync({ forcePush: true });
@@ -481,13 +548,17 @@
     });
   }
 
+  function bootSyncUI() {
+    bindUI();
+    updateSettingsUI();
+  }
+
   window.ResumeSync = {
     init(options = {}) {
-      callbacks = options;
-      bindUI();
+      callbacks = { ...callbacks, ...options };
+      bootSyncUI();
       initCloudClient();
       setStatus(isCloudEnabled() ? 'ok' : 'disabled');
-      updateSettingsUI();
     },
     isConfigured: isCloudConfigured,
     isEnabled: isCloudEnabled,
@@ -499,5 +570,13 @@
     },
     syncNow: () => runCloudSync({ forcePush: true }),
     updateSettingsUI,
+    openSyncModal,
+    openPasteModal,
   };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootSyncUI);
+  } else {
+    bootSyncUI();
+  }
 })();

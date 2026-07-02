@@ -1215,6 +1215,13 @@ function bindEvents() {
 
   $('#btnTheme').addEventListener('click', toggleTheme);
 
+  $('#btnSyncSetup')?.addEventListener('click', () => {
+    if (window.ResumeSync?.openSyncModal) window.ResumeSync.openSyncModal();
+  });
+  $('#btnPasteSyncCode')?.addEventListener('click', () => {
+    if (window.ResumeSync?.openPasteModal) window.ResumeSync.openPasteModal();
+  });
+
   $('#btnNotify').addEventListener('click', async () => {
     await requestNotificationPermission();
     updateNotifyButton();
