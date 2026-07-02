@@ -57,7 +57,7 @@
           return '自动同步已开启';
       }
     }
-    if (hasSyncKey()) return '已设密钥（同步码）';
+    if (hasSyncKey()) return '已设密钥';
     return '未设置';
   }
 
@@ -191,7 +191,7 @@
     );
     return {
       payload: bufferToBase64(encrypted),
-      iv: bufferToBase64(iv.buffer),
+      iv: bufferToBase64(iv),
     };
   }
 
@@ -361,45 +361,101 @@
     updateSettingsUI();
   }
 
-  async function exportSyncCode() {
-    let syncKey = getSyncKey();
-    const input = document.getElementById('syncKeyInput');
-    if (input?.value.trim()) syncKey = validateSyncKey(input.value);
-    if (!syncKey) {
-      alert('请先设置同步密钥');
-      return;
+  function normalizeSyncCodeInput(rawText) {
+    const text = String(rawText || '').trim().replace(/\s/g, '');
+    if (!text) {
+      throw new Error('请粘贴同步码');
     }
+    if (/^[a-f0-9]{16,64}$/i.test(text)) {
+      throw new Error(
+        '您粘贴的是「同步密钥」（32位十六进制），不是「同步码」。\n\n请在本机依次操作：保存密钥 → 点「复制同步码」→ 粘贴以 RT1: 开头的长文本。'
+      );
+    }
+    if (!text.startsWith(SYNC_CODE_PREFIX)) {
+      throw new Error('同步码应以 RT1: 开头。请点「复制同步码」获取，不要复制密钥。');
+    }
+    return text;
+  }
 
-    const localData = callbacks.getData ? callbacks.getData() : { applications: [], reminderSentIds: [] };
+  async function buildSyncCode(syncKey) {
+    if (!callbacks.getData) {
+      throw new Error('应用尚未就绪，请刷新页面后重试');
+    }
+    const localData = callbacks.getData();
     const encrypted = await encryptPayload(syncKey, {
       ...localData,
       syncedAt: new Date().toISOString(),
     });
-    const code = `${SYNC_CODE_PREFIX}${btoa(JSON.stringify(encrypted))}`;
+    const payloadJson = JSON.stringify(encrypted);
+    return `${SYNC_CODE_PREFIX}${bufferToBase64(new TextEncoder().encode(payloadJson))}`;
+  }
+
+  async function copyText(text, successMessage) {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(successMessage);
+    } catch {
+      prompt('请手动复制：', text);
+    }
+  }
+
+  async function exportSyncCode() {
+    let syncKey = getSyncKey();
+    const input = document.getElementById('syncKeyInput');
+    if (input?.value.trim()) {
+      syncKey = validateSyncKey(input.value);
+      saveSyncKey(syncKey);
+    }
+    if (!syncKey) {
+      alert('请先设置并保存同步密钥');
+      openSyncModal();
+      return;
+    }
 
     try {
-      await navigator.clipboard.writeText(code);
-      alert('同步码已复制！\n\n通过微信发给另一台设备，在「粘贴同步码」中导入即可（需使用相同密钥）。');
-    } catch {
-      prompt('请手动复制同步码：', code);
+      const code = await buildSyncCode(syncKey);
+      const preview = document.getElementById('syncCodePreview');
+      const previewWrap = document.getElementById('syncCodePreviewWrap');
+      if (preview) preview.value = code;
+      if (previewWrap) previewWrap.hidden = false;
+      await copyText(
+        code,
+        '同步码已复制！\n\n这是一串以 RT1: 开头的长文本（不是 32 位密钥）。\n\n另一台设备需先保存相同密钥，再「粘贴同步码」。'
+      );
+    } catch (err) {
+      alert(err.message || '生成同步码失败');
     }
   }
 
   async function importSyncCode(rawText) {
-    const text = String(rawText || '').trim();
-    if (!text.startsWith(SYNC_CODE_PREFIX)) {
-      throw new Error('同步码格式不正确');
-    }
+    const text = normalizeSyncCodeInput(rawText);
 
     let syncKey = getSyncKey();
     const input = document.getElementById('syncKeyInput');
     if (input?.value.trim()) syncKey = validateSyncKey(input.value);
     if (!syncKey) {
-      throw new Error('请先输入与导出时相同的同步密钥');
+      throw new Error('请先在「同步密钥」中保存与导出设备相同的密钥');
     }
 
-    const encrypted = JSON.parse(atob(text.slice(SYNC_CODE_PREFIX.length)));
-    const remoteData = await decryptPayload(syncKey, encrypted.payload, encrypted.iv);
+    let encrypted;
+    try {
+      const payloadJson = new TextDecoder().decode(base64ToBuffer(text.slice(SYNC_CODE_PREFIX.length)));
+      encrypted = JSON.parse(payloadJson);
+    } catch {
+      throw new Error('同步码内容损坏或不完整，请重新复制');
+    }
+
+    if (!encrypted?.payload || !encrypted?.iv) {
+      throw new Error('同步码内容无效，请重新复制');
+    }
+
+    let remoteData;
+    try {
+      remoteData = await decryptPayload(syncKey, encrypted.payload, encrypted.iv);
+    } catch {
+      throw new Error('解密失败，请确认两台设备使用了相同的同步密钥');
+    }
+
     const localData = callbacks.getData ? callbacks.getData() : { applications: [], reminderSentIds: [] };
     const merged = mergePayload(localData, remoteData);
 
@@ -416,7 +472,6 @@
     const btnEnableCloud = document.getElementById('btnEnableCloud');
     const btnCopyCode = document.getElementById('btnCopySyncCode');
     const btnPasteCode = document.getElementById('btnPasteSyncCode');
-    const syncHintConfigured = document.getElementById('syncConfigHint');
 
     if (statusEl) statusEl.textContent = getStatusLabel();
     if (keyEl) keyEl.textContent = hasSyncKey() ? maskSyncKey(getSyncKey()) : '未设置';
@@ -425,11 +480,6 @@
     if (btnEnableCloud) btnEnableCloud.hidden = !hasSyncKey() || isCloudEnabled() || !isCloudConfigured();
     if (btnCopyCode) btnCopyCode.hidden = !hasSyncKey();
     if (btnPasteCode) btnPasteCode.hidden = false;
-    if (syncHintConfigured) {
-      syncHintConfigured.hidden = isCloudConfigured();
-      syncHintConfigured.textContent =
-        'LeanCloud 已停止注册。无需账号可用「同步码」同步；自动同步需部署者在 Supabase 用邮箱注册并配置。';
-    }
 
     const input = document.getElementById('syncKeyInput');
     if (input && document.activeElement !== input && hasSyncKey()) {
@@ -471,12 +521,7 @@
   async function copySyncKey() {
     const input = document.getElementById('syncKeyInput');
     const key = validateSyncKey(input?.value || getSyncKey());
-    try {
-      await navigator.clipboard.writeText(key);
-      alert('同步密钥已复制，请在另一台设备粘贴并保存。');
-    } catch {
-      prompt('请手动复制同步密钥：', key);
-    }
+    await copyText(key, '同步密钥已复制。\n\n请在另一台设备的「同步密钥」中粘贴并保存。\n\n注意：密钥不是同步码，传数据还需再点「复制同步码」。');
   }
 
   let uiBound = false;
@@ -499,12 +544,12 @@
       if (input) input.value = generateSyncKey();
     });
     document.getElementById('btnCopySyncKey')?.addEventListener('click', copySyncKey);
+    document.getElementById('btnCopySyncCodeInModal')?.addEventListener('click', exportSyncCode);
     document.getElementById('btnSaveSyncKey')?.addEventListener('click', () => {
       const input = document.getElementById('syncKeyInput');
       try {
         saveSyncKey(input?.value);
-        alert('同步密钥已保存。现在可以使用「复制同步码」在多设备间同步。');
-        closeSyncModal();
+        alert('密钥已保存。\n\n下一步：点「复制同步码」导出数据（以 RT1: 开头的长文本）。');
       } catch (err) {
         alert(err.message);
       }
@@ -572,6 +617,7 @@
     updateSettingsUI,
     openSyncModal,
     openPasteModal,
+    exportSyncCode,
   };
 
   if (document.readyState === 'loading') {

@@ -114,8 +114,8 @@
       <section class="page" id="pageSettings" data-page="settings">
         <div class="settings-group">
           <h3 class="settings-group__title">多设备同步</h3>
-          <p class="settings-note" id="syncConfigHint" hidden>
-            LeanCloud 已停止注册。无需账号可用「同步码」同步；自动同步需部署者在 Supabase 用邮箱注册并配置。
+          <p class="settings-note">
+            同步分两步：① 两台设备设<strong>相同密钥</strong> ② 本机「复制同步码」→ 另一台「粘贴同步码」。密钥是 32 位，同步码以 RT1: 开头。
           </p>
           <button type="button" class="settings-item" id="btnSyncSetup">
             <span class="settings-item__icon">🔑</span>
@@ -184,7 +184,7 @@
           <div class="settings-item settings-item--static">
             <span class="settings-item__icon">📦</span>
             <span class="settings-item__label">当前版本</span>
-            <span class="settings-item__value" id="appVersion">v14</span>
+            <span class="settings-item__value" id="appVersion">v15</span>
           </div>
         </div>
         <div class="settings-group">
@@ -369,22 +369,27 @@
   <!-- 同步密钥 -->
   <dialog class="modal" id="syncModal">
     <div class="modal__header">
-      <h2>云端同步</h2>
+      <h2>同步密钥</h2>
       <button type="button" class="modal__close" id="btnCloseSync" aria-label="关闭">&times;</button>
     </div>
     <div class="modal__body">
-      <p class="sync-hint">输入或生成<strong>同步密钥</strong>。不同密钥的数据完全隔离，请勿告诉他人。</p>
-      <p class="sync-hint sync-hint--warn">请妥善保管密钥。丢失将无法解密同步码或云端数据。</p>
+      <p class="sync-hint"><strong>密钥</strong>用于加密（32 位左右），<strong>同步码</strong>用于传输数据（以 RT1: 开头的长文本）。两者不同。</p>
+      <p class="sync-hint">步骤：生成密钥 → 保存 → 复制同步码 → 另一台保存相同密钥 → 粘贴同步码</p>
       <label class="form-field">
         <span>同步密钥</span>
         <div class="sync-key-row">
-          <input type="text" id="syncKeyInput" placeholder="至少 8 位，建议点「生成」" autocomplete="off" spellcheck="false">
-          <button type="button" class="btn btn--ghost btn--sm" id="btnGenerateSyncKey">生成</button>
+          <input type="text" id="syncKeyInput" placeholder="至少 8 位，建议点「生成密钥」" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn btn--ghost btn--sm" id="btnGenerateSyncKey">生成密钥</button>
         </div>
       </label>
       <div class="sync-key-actions">
         <button type="button" class="btn btn--ghost btn--sm" id="btnCopySyncKey">复制密钥</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnCopySyncCodeInModal">复制同步码</button>
       </div>
+      <label class="form-field" id="syncCodePreviewWrap" hidden>
+        <span>最新同步码（RT1: 开头）</span>
+        <textarea id="syncCodePreview" rows="3" readonly spellcheck="false"></textarea>
+      </label>
     </div>
     <div class="modal__footer">
       <button type="button" class="btn btn--ghost" id="btnCancelSync">取消</button>
@@ -400,10 +405,11 @@
       <button type="button" class="modal__close" id="btnClosePasteSync" aria-label="关闭">&times;</button>
     </div>
     <div class="modal__body">
-      <p class="sync-hint">粘贴从另一台设备复制的同步码，并确保已设置<strong>相同的同步密钥</strong>。</p>
+      <p class="sync-hint">粘贴从另一台设备「复制同步码」得到的内容（<strong>以 RT1: 开头</strong>的长文本）。</p>
+      <p class="sync-hint sync-hint--warn">不要粘贴 32 位密钥。密钥请在「同步密钥」里单独保存。</p>
       <label class="form-field">
-        <span>同步码</span>
-        <textarea id="pasteSyncInput" rows="6" placeholder="RT1:..." spellcheck="false"></textarea>
+        <span>同步码（RT1:…）</span>
+        <textarea id="pasteSyncInput" rows="6" placeholder="RT1:eyJwYXlsb2FkIjoiLi4uIiwiaXYiOiIuLi4ifQ==" spellcheck="false"></textarea>
       </label>
     </div>
     <div class="modal__footer">
