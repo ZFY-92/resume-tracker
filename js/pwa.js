@@ -1,5 +1,5 @@
 const INSTALL_DISMISS_KEY = 'pwa-install-dismissed';
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 
 let deferredPrompt = null;
 let refreshing = false;
@@ -27,12 +27,54 @@ function setUpdateStatus(text) {
   if (el) el.textContent = text;
 }
 
+function updateVersionDisplay(version = APP_VERSION) {
+  const el = document.getElementById('appVersion');
+  if (el) el.textContent = version;
+}
+
 function activateWaitingWorker(registration) {
   if (registration.waiting) {
     registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     return true;
   }
   return false;
+}
+
+async function fetchRemoteVersion() {
+  try {
+    const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.version || null;
+  } catch {
+    return null;
+  }
+}
+
+async function clearAppCachesAndReload() {
+  refreshing = true;
+  setUpdateStatus('正在更新…');
+
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (registration) {
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      await registration.unregister();
+    }
+  } catch (err) {
+    console.warn('Clear cache failed:', err);
+  }
+
+  const base = `${window.location.pathname}${window.location.search}`;
+  const separator = base.includes('?') ? '&' : '?';
+  window.location.replace(`${base}${separator}appv=${Date.now()}`);
 }
 
 async function checkForAppUpdate(manual = false) {
@@ -42,6 +84,17 @@ async function checkForAppUpdate(manual = false) {
   }
 
   if (manual) setUpdateStatus('检查中…');
+
+  const localVersion = window.APP_VERSION || APP_VERSION;
+  const remoteVersion = await fetchRemoteVersion();
+
+  if (remoteVersion && remoteVersion !== localVersion) {
+    if (manual) {
+      alert(`发现新版本 ${remoteVersion}（当前 ${localVersion}），即将刷新应用。`);
+    }
+    await clearAppCachesAndReload();
+    return { updated: true, message: '更新中' };
+  }
 
   try {
     const registration = await navigator.serviceWorker.getRegistration();
@@ -75,7 +128,7 @@ async function checkForAppUpdate(manual = false) {
 
     if (manual) {
       setUpdateStatus('已是最新');
-      alert('当前已是最新版本');
+      alert(`当前已是最新版本（${localVersion}）`);
     } else {
       setUpdateStatus('已是最新');
     }
@@ -99,6 +152,7 @@ function registerServiceWorker() {
   });
 
   window.addEventListener('load', () => {
+    updateVersionDisplay();
     navigator.serviceWorker
       .register('./service-worker.js')
       .then((registration) => {

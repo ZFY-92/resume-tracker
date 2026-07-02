@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resume-tracker-v13';
+const CACHE_NAME = 'resume-tracker-v14';
 const ASSETS = [
   './index.html',
   './css/style.css',
@@ -6,6 +6,7 @@ const ASSETS = [
   './js/pwa.js',
   './js/sync.js',
   './js/supabase-config.js',
+  './version.json',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -42,6 +43,7 @@ function shouldNetworkFirst(request) {
     path.endsWith('.html') ||
     path.endsWith('.css') ||
     path.endsWith('.js') ||
+    path.endsWith('.json') ||
     path.endsWith('.webmanifest')
   );
 }
