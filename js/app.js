@@ -60,8 +60,15 @@ function loadData() {
   }
   try {
     const rawVersions = localStorage.getItem(RESUME_VERSIONS_KEY);
-    resumeVersions = rawVersions ? JSON.parse(rawVersions) : [];
-    resumeVersions = resumeVersions.map((item) => normalizeResumeVersion(item));
+    const parsedVersions = rawVersions ? JSON.parse(rawVersions) : [];
+    const hadLegacy = parsedVersions.some(
+      (item) => item.company || (item.position && !item.positionType)
+    );
+    resumeVersions = parsedVersions.map((item) => normalizeResumeVersion(item));
+    if (hadLegacy || hasDuplicateResumeVersionKeys()) {
+      ensureResumeVersionNumbersUnique();
+      saveResumeVersionsLocal();
+    }
   } catch {
     resumeVersions = [];
   }
@@ -77,26 +84,86 @@ function saveResumeVersionsLocal() {
   localStorage.setItem(RESUME_VERSIONS_KEY, JSON.stringify(resumeVersions));
 }
 
-function buildResumeVersionName(company, position) {
-  const c = String(company || '').trim();
-  const p = String(position || '').trim();
-  if (c && p) return `${c} · ${p}`;
-  return c || p || '未命名简历';
+function buildResumeVersionName(positionType, versionNum) {
+  const type = String(positionType || '').trim();
+  const num = Math.max(1, Number(versionNum) || 1);
+  if (type) return `${type} v${num}`;
+  return `未分类 v${num}`;
+}
+
+function parseResumeVersionName(name) {
+  const match = String(name || '').trim().match(/^(.+?)\s+v(\d+)$/i);
+  if (!match) return null;
+  return {
+    positionType: match[1].trim(),
+    versionNum: parseInt(match[2], 10),
+  };
 }
 
 function normalizeResumeVersion(item) {
-  const company = item.company || '';
-  const position = item.position || '';
+  let positionType = String(item.positionType || item.position || '').trim();
+  let versionNum = Number(item.versionNum);
+
+  if ((!positionType || !versionNum) && item.name) {
+    const parsed = parseResumeVersionName(item.name);
+    if (parsed) {
+      positionType = positionType || parsed.positionType;
+      versionNum = versionNum || parsed.versionNum;
+    }
+  }
+
+  if (!positionType && item.company) {
+    positionType = String(item.company).trim();
+  }
+
+  if (!positionType) positionType = '未分类';
+  if (!versionNum || versionNum < 1) versionNum = 1;
+
   return {
     id: item.id || generateId(),
-    company,
-    position,
-    name: item.name || buildResumeVersionName(company, position),
+    positionType,
+    versionNum,
+    name: buildResumeVersionName(positionType, versionNum),
     note: item.note || '',
     isDefault: !!item.isDefault,
     createdAt: item.createdAt || new Date().toISOString(),
     updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
   };
+}
+
+function hasDuplicateResumeVersionKeys() {
+  const seen = new Set();
+  for (const version of resumeVersions) {
+    const key = `${version.positionType}::${version.versionNum}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}
+
+function ensureResumeVersionNumbersUnique() {
+  const groups = new Map();
+  resumeVersions.forEach((version) => {
+    if (!groups.has(version.positionType)) groups.set(version.positionType, []);
+    groups.get(version.positionType).push(version);
+  });
+  groups.forEach((list) => {
+    list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    list.forEach((version, index) => {
+      version.versionNum = index + 1;
+      version.name = buildResumeVersionName(version.positionType, version.versionNum);
+    });
+  });
+}
+
+function getNextResumeVersionNum(positionType, excludeId = null) {
+  const type = String(positionType || '').trim();
+  if (!type) return 1;
+  const nums = resumeVersions
+    .filter((v) => v.positionType === type && v.id !== excludeId)
+    .map((v) => v.versionNum);
+  if (nums.length === 0) return 1;
+  return Math.max(...nums) + 1;
 }
 
 function getResumeVersion(id) {
@@ -114,14 +181,26 @@ function getDefaultResumeVersionId() {
   return def?.id || resumeVersions[0]?.id || '';
 }
 
-function findResumeVersionByCompanyPosition(company, position) {
-  const c = String(company || '').trim();
-  const p = String(position || '').trim();
-  if (!c || !p) return null;
-  return (
-    resumeVersions.find((v) => v.company === c && v.position === p) ||
-    resumeVersions.find((v) => v.name === buildResumeVersionName(c, p)) ||
-    null
+function findResumeVersionByTypeAndNum(positionType, versionNum) {
+  const type = String(positionType || '').trim();
+  const num = Number(versionNum);
+  if (!type || !num) return null;
+  return resumeVersions.find((v) => v.positionType === type && v.versionNum === num) || null;
+}
+
+function findResumeVersionsByPositionType(positionType) {
+  const type = String(positionType || '').trim();
+  if (!type) return [];
+  return resumeVersions.filter((v) => v.positionType === type);
+}
+
+function findBestMatchingResumeVersion(positionType) {
+  const matches = findResumeVersionsByPositionType(positionType);
+  if (matches.length === 0) return null;
+  const preferred = matches.find((v) => v.isDefault);
+  if (preferred) return preferred;
+  return matches.reduce((latest, current) =>
+    current.versionNum > latest.versionNum ? current : latest
   );
 }
 
@@ -154,7 +233,7 @@ function renderResumeVersionList() {
   if (!container) return;
 
   if (resumeVersions.length === 0) {
-    container.innerHTML = '<p class="settings-note">暂无简历版本。可按「公司 + 岗位」创建，例如：字节跳动 · 前端开发。</p>';
+    container.innerHTML = '<p class="settings-note">暂无简历版本。可按「岗位类型 + v数字」创建，例如：前端开发 v1、产品经理 v2。</p>';
     return;
   }
 
@@ -189,10 +268,13 @@ function renderResumeVersionList() {
 function updateResumeVersionNamePreview() {
   const preview = $('#resumeVersionNamePreview');
   if (!preview) return;
-  preview.textContent = buildResumeVersionName(
-    $('#resumeVersionCompany')?.value,
-    $('#resumeVersionPosition')?.value
-  );
+  const positionType = $('#resumeVersionPositionType')?.value.trim();
+  if (resumeVersionEditId) {
+    const version = getResumeVersion(resumeVersionEditId);
+    preview.textContent = buildResumeVersionName(positionType || version?.positionType, version?.versionNum);
+    return;
+  }
+  preview.textContent = buildResumeVersionName(positionType, getNextResumeVersionNum(positionType));
 }
 
 function openResumeVersionForm(id = null) {
@@ -200,8 +282,7 @@ function openResumeVersionForm(id = null) {
   const modal = $('#resumeVersionModal');
   const version = id ? getResumeVersion(id) : null;
   $('#resumeVersionModalTitle').textContent = version ? '编辑简历版本' : '新增简历版本';
-  $('#resumeVersionCompany').value = version?.company || '';
-  $('#resumeVersionPosition').value = version?.position || '';
+  $('#resumeVersionPositionType').value = version?.positionType || '';
   $('#resumeVersionNote').value = version?.note || '';
   $('#resumeVersionDefault').checked = version ? !!version.isDefault : resumeVersions.length === 0;
   updateResumeVersionNamePreview();
@@ -215,17 +296,27 @@ function closeResumeVersionForm() {
 
 function saveResumeVersionForm(e) {
   e.preventDefault();
-  const company = $('#resumeVersionCompany').value.trim();
-  const position = $('#resumeVersionPosition').value.trim();
+  const positionType = $('#resumeVersionPositionType').value.trim();
   const note = $('#resumeVersionNote').value.trim();
   const isDefault = $('#resumeVersionDefault').checked;
 
-  if (!company || !position) {
-    alert('请填写公司和岗位');
+  if (!positionType) {
+    alert('请填写岗位类型');
     return;
   }
 
-  const duplicate = findResumeVersionByCompanyPosition(company, position);
+  let versionNum;
+  if (resumeVersionEditId) {
+    const existing = getResumeVersion(resumeVersionEditId);
+    versionNum =
+      existing?.positionType === positionType
+        ? existing.versionNum
+        : getNextResumeVersionNum(positionType, resumeVersionEditId);
+  } else {
+    versionNum = getNextResumeVersionNum(positionType);
+  }
+
+  const duplicate = findResumeVersionByTypeAndNum(positionType, versionNum);
   if (duplicate && duplicate.id !== resumeVersionEditId) {
     alert(`已有相同版本：${duplicate.name}`);
     return;
@@ -233,9 +324,9 @@ function saveResumeVersionForm(e) {
 
   const now = new Date().toISOString();
   const payload = {
-    company,
-    position,
-    name: buildResumeVersionName(company, position),
+    positionType,
+    versionNum,
+    name: buildResumeVersionName(positionType, versionNum),
     note,
     isDefault,
     updatedAt: now,
@@ -305,23 +396,17 @@ function confirmDeleteResumeVersion() {
 }
 
 function createResumeVersionFromApplicationForm() {
-  const company = $('#fieldCompany').value.trim();
-  const position = $('#fieldPosition').value.trim();
-  if (!company || !position) {
-    alert('请先填写公司和岗位');
+  const positionType = $('#fieldPosition').value.trim();
+  if (!positionType) {
+    alert('请先填写岗位');
     return;
   }
-  const existing = findResumeVersionByCompanyPosition(company, position);
-  if (existing) {
-    populateResumeVersionSelect($('#fieldResumeVersion'), existing.id);
-    alert(`已有简历版本「${existing.name}」，已自动选中`);
-    return;
-  }
+  const versionNum = getNextResumeVersionNum(positionType);
   const now = new Date().toISOString();
   const version = normalizeResumeVersion({
     id: generateId(),
-    company,
-    position,
+    positionType,
+    versionNum,
     isDefault: resumeVersions.length === 0,
     createdAt: now,
     updatedAt: now,
@@ -338,11 +423,10 @@ function createResumeVersionFromApplicationForm() {
 }
 
 function syncApplicationResumeVersionFromFields() {
-  const company = $('#fieldCompany')?.value.trim();
-  const position = $('#fieldPosition')?.value.trim();
+  const positionType = $('#fieldPosition')?.value.trim();
   const select = $('#fieldResumeVersion');
-  if (!select || !company || !position) return;
-  const matched = findResumeVersionByCompanyPosition(company, position);
+  if (!select || !positionType) return;
+  const matched = findBestMatchingResumeVersion(positionType);
   if (matched) select.value = matched.id;
 }
 
@@ -919,7 +1003,7 @@ function renderSettingsPage() {
   const countEl = $('#settingsRecordCount');
   if (countEl) countEl.textContent = String(applications.length);
   const versionEl = $('#appVersion');
-  if (versionEl) versionEl.textContent = window.APP_VERSION ? `v${window.APP_VERSION}` : 'v19';
+  if (versionEl) versionEl.textContent = window.APP_VERSION ? `v${window.APP_VERSION}` : 'v20';
   updateNotifyButton();
   updateThemeButton(document.documentElement.getAttribute('data-theme') || 'light');
   if (window.ResumeSync?.updateSettingsUI) window.ResumeSync.updateSettingsUI();
@@ -1371,6 +1455,9 @@ function importData(file) {
           }
           resumeVersions.push(normalized);
         });
+        if (hasDuplicateResumeVersionKeys()) {
+          ensureResumeVersionNumbersUnique();
+        }
       } else {
         applications = importedApps.map((item) => ({
           ...item,
@@ -1513,7 +1600,6 @@ function bindEvents() {
   $('#btnCancel').addEventListener('click', closeForm);
   $('#applicationForm').addEventListener('submit', handleFormSubmit);
   $('#fieldStatus').addEventListener('change', toggleFormFieldsByStatus);
-  $('#fieldCompany').addEventListener('blur', syncApplicationResumeVersionFromFields);
   $('#fieldPosition').addEventListener('blur', syncApplicationResumeVersionFromFields);
   $('#btnCreateResumeVersionFromForm').addEventListener('click', createResumeVersionFromApplicationForm);
 
@@ -1521,8 +1607,7 @@ function bindEvents() {
   $('#btnCloseResumeVersionModal').addEventListener('click', closeResumeVersionForm);
   $('#btnCancelResumeVersion').addEventListener('click', closeResumeVersionForm);
   $('#resumeVersionForm').addEventListener('submit', saveResumeVersionForm);
-  $('#resumeVersionCompany').addEventListener('input', updateResumeVersionNamePreview);
-  $('#resumeVersionPosition').addEventListener('input', updateResumeVersionNamePreview);
+  $('#resumeVersionPositionType').addEventListener('input', updateResumeVersionNamePreview);
   $('#btnCloseResumeVersionDelete').addEventListener('click', closeResumeVersionDeleteConfirm);
   $('#btnCancelResumeVersionDelete').addEventListener('click', closeResumeVersionDeleteConfirm);
   $('#btnConfirmResumeVersionDelete').addEventListener('click', confirmDeleteResumeVersion);

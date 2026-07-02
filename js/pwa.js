@@ -1,6 +1,6 @@
 const INSTALL_DISMISS_KEY = 'pwa-install-dismissed';
 const VERSION_KEY = 'resume-tracker-app-version';
-const APP_VERSION = '19';
+const APP_VERSION = '20';
 
 let deferredPrompt = null;
 let swRegistration = null;
