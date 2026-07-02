@@ -221,11 +221,28 @@
     return Array.from(map.values());
   }
 
+  function mergeResumeVersions(local, remote) {
+    const map = new Map();
+    local.forEach((item) => map.set(item.id, item));
+    remote.forEach((item) => {
+      const existing = map.get(item.id);
+      if (!existing) {
+        map.set(item.id, item);
+        return;
+      }
+      const localTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      const remoteTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
+      map.set(item.id, remoteTime >= localTime ? item : existing);
+    });
+    return Array.from(map.values());
+  }
+
   function mergePayload(localData, remoteData) {
     const localApps = localData.applications || [];
     const remoteApps = remoteData.applications || [];
     return {
       applications: mergeApplications(localApps, remoteApps),
+      resumeVersions: mergeResumeVersions(localData.resumeVersions || [], remoteData.resumeVersions || []),
       reminderSentIds: [
         ...new Set([...(localData.reminderSentIds || []), ...(remoteData.reminderSentIds || [])]),
       ],
@@ -284,6 +301,7 @@
       if (!remoteData) {
         const payload = {
           applications: localData.applications || [],
+          resumeVersions: localData.resumeVersions || [],
           reminderSentIds: localData.reminderSentIds || [],
           syncedAt: new Date().toISOString(),
         };
@@ -293,7 +311,9 @@
       }
 
       const merged = mergePayload(localData, remoteData);
-      const changed = JSON.stringify(localData.applications || []) !== JSON.stringify(merged.applications || []);
+      const changed =
+        JSON.stringify(localData.applications || []) !== JSON.stringify(merged.applications || []) ||
+        JSON.stringify(localData.resumeVersions || []) !== JSON.stringify(merged.resumeVersions || []);
 
       if (changed && callbacks.applyData) callbacks.applyData(merged);
       if (changed || forcePush) await pushRemote(syncKey, merged);

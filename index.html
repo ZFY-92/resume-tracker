@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/style.css?v=18">
+  <link rel="stylesheet" href="css/style.css?v=19">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -69,6 +69,7 @@
                 <th>截止/面试</th>
                 <th>状态</th>
                 <th>薪资</th>
+                <th>简历版本</th>
                 <th>备注</th>
                 <th>操作</th>
               </tr>
@@ -149,6 +150,16 @@
           </button>
         </div>
         <div class="settings-group">
+          <h3 class="settings-group__title">简历版本</h3>
+          <p class="settings-note">按「公司 · 岗位」管理定制简历，投递时可选择对应版本。</p>
+          <div id="resumeVersionList" class="resume-version-list"></div>
+          <button type="button" class="settings-item" id="btnAddResumeVersion">
+            <span class="settings-item__icon">📄</span>
+            <span class="settings-item__label">新增简历版本</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
+        </div>
+        <div class="settings-group">
           <h3 class="settings-group__title">提醒与数据</h3>
           <button type="button" class="settings-item" id="btnNotify">
             <span class="settings-item__icon">🔔</span>
@@ -194,7 +205,7 @@
           <div class="settings-item settings-item--static">
             <span class="settings-item__icon">📦</span>
             <span class="settings-item__label">当前版本</span>
-            <span class="settings-item__value" id="appVersion">v18</span>
+            <span class="settings-item__value" id="appVersion">v19</span>
           </div>
         </div>
         <div class="settings-group">
@@ -285,6 +296,13 @@
             <span>岗位链接</span>
             <input type="url" id="fieldLink" placeholder="https://">
           </label>
+          <label class="form-field">
+            <span>简历版本</span>
+            <div class="sync-key-row">
+              <select id="fieldResumeVersion"></select>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnCreateResumeVersionFromForm">从当前创建</button>
+            </div>
+          </label>
           <div class="form-section" id="deadlineFields" hidden>
             <label class="form-field">
               <span>投递截止日期</span>
@@ -374,6 +392,54 @@
     </div>
   </dialog>
 
+  <dialog class="modal modal--sm" id="resumeVersionModal">
+    <div class="modal__header">
+      <h2 id="resumeVersionModalTitle">新增简历版本</h2>
+      <button type="button" class="modal__close" id="btnCloseResumeVersionModal" aria-label="关闭">&times;</button>
+    </div>
+    <form class="modal__form" id="resumeVersionForm">
+      <div class="modal__body">
+        <p class="sync-hint">版本名称自动生成：<strong id="resumeVersionNamePreview">公司 · 岗位</strong></p>
+        <div class="form-grid">
+          <label class="form-field">
+            <span>目标公司 <em>*</em></span>
+            <input type="text" id="resumeVersionCompany" required placeholder="例如：字节跳动">
+          </label>
+          <label class="form-field">
+            <span>目标岗位 <em>*</em></span>
+            <input type="text" id="resumeVersionPosition" required placeholder="例如：前端开发工程师">
+          </label>
+          <label class="form-field form-field--full">
+            <span>备注</span>
+            <input type="text" id="resumeVersionNote" placeholder="例如：突出 XX 项目经历">
+          </label>
+          <label class="form-field form-field--full resume-version-default">
+            <input type="checkbox" id="resumeVersionDefault">
+            <span>设为默认版本（新建投递时自动选中）</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--ghost" id="btnCancelResumeVersion">取消</button>
+        <button type="submit" class="btn btn--primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal modal--sm" id="resumeVersionDeleteModal">
+    <div class="modal__header">
+      <h2>删除简历版本</h2>
+      <button type="button" class="modal__close" id="btnCloseResumeVersionDelete" aria-label="关闭">&times;</button>
+    </div>
+    <div class="modal__body">
+      <p>确定要删除 <strong id="resumeVersionDeleteName"></strong> 吗？</p>
+    </div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--ghost" id="btnCancelResumeVersionDelete">取消</button>
+      <button type="button" class="btn btn--danger" id="btnConfirmResumeVersionDelete">删除</button>
+    </div>
+  </dialog>
+
   <input type="file" id="importFile" accept=".json" hidden>
 
   <!-- 同步密钥 -->
@@ -444,9 +510,9 @@
     </div>
   </dialog>
 
-  <script src="js/supabase-config.js?v=18"></script>
-  <script src="js/sync.js?v=18"></script>
-  <script src="js/pwa.js?v=18"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="js/supabase-config.js?v=19"></script>
+  <script src="js/sync.js?v=19"></script>
+  <script src="js/pwa.js?v=19"></script>
+  <script src="js/app.js?v=19"></script>
 </body>
 </html>
