@@ -113,6 +113,37 @@
       <!-- 我的 -->
       <section class="page" id="pageSettings" data-page="settings">
         <div class="settings-group">
+          <h3 class="settings-group__title">多设备同步</h3>
+          <p class="settings-note" id="syncConfigHint" hidden>
+            LeanCloud 已停止注册。无需账号可用「同步码」同步；自动同步需部署者在 Supabase 用邮箱注册并配置。
+          </p>
+          <button type="button" class="settings-item" id="btnSyncSetup">
+            <span class="settings-item__icon">🔑</span>
+            <span class="settings-item__label">同步密钥</span>
+            <span class="settings-item__value" id="syncStatus">未设置</span>
+          </button>
+          <div class="settings-item settings-item--static">
+            <span class="settings-item__icon">🛡️</span>
+            <span class="settings-item__label">当前密钥</span>
+            <span class="settings-item__value" id="syncKeyPreview">未设置</span>
+          </div>
+          <button type="button" class="settings-item" id="btnCopySyncCode" hidden>
+            <span class="settings-item__icon">📋</span>
+            <span class="settings-item__label">复制同步码</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
+          <button type="button" class="settings-item" id="btnPasteSyncCode">
+            <span class="settings-item__icon">📥</span>
+            <span class="settings-item__label">粘贴同步码</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
+          <button type="button" class="settings-item" id="btnSyncNow" hidden>
+            <span class="settings-item__icon">🔄</span>
+            <span class="settings-item__label">立即自动同步</span>
+            <span class="settings-item__arrow">›</span>
+          </button>
+        </div>
+        <div class="settings-group">
           <h3 class="settings-group__title">提醒与数据</h3>
           <button type="button" class="settings-item" id="btnNotify">
             <span class="settings-item__icon">🔔</span>
@@ -153,7 +184,7 @@
           <div class="settings-item settings-item--static">
             <span class="settings-item__icon">📦</span>
             <span class="settings-item__label">当前版本</span>
-            <span class="settings-item__value" id="appVersion">v9</span>
+            <span class="settings-item__value" id="appVersion">v12</span>
           </div>
         </div>
         <div class="settings-group">
@@ -335,6 +366,55 @@
 
   <input type="file" id="importFile" accept=".json" hidden>
 
+  <!-- 同步密钥 -->
+  <dialog class="modal" id="syncModal">
+    <div class="modal__header">
+      <h2>云端同步</h2>
+      <button type="button" class="modal__close" id="btnCloseSync" aria-label="关闭">&times;</button>
+    </div>
+    <div class="modal__body">
+      <p class="sync-hint">输入或生成<strong>同步密钥</strong>。不同密钥的数据完全隔离，请勿告诉他人。</p>
+      <p class="sync-hint sync-hint--warn">请妥善保管密钥。丢失将无法解密同步码或云端数据。</p>
+      <label class="form-field">
+        <span>同步密钥</span>
+        <div class="sync-key-row">
+          <input type="text" id="syncKeyInput" placeholder="至少 8 位，建议点「生成」" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn btn--ghost btn--sm" id="btnGenerateSyncKey">生成</button>
+        </div>
+      </label>
+      <div class="sync-key-actions">
+        <button type="button" class="btn btn--ghost btn--sm" id="btnCopySyncKey">复制密钥</button>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--ghost" id="btnCancelSync">取消</button>
+      <button type="button" class="btn btn--danger" id="btnDisableCloud" hidden>关闭自动同步</button>
+      <button type="button" class="btn btn--ghost" id="btnEnableCloud" hidden>开启自动同步</button>
+      <button type="button" class="btn btn--primary" id="btnSaveSyncKey">保存密钥</button>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="pasteSyncModal">
+    <div class="modal__header">
+      <h2>粘贴同步码</h2>
+      <button type="button" class="modal__close" id="btnClosePasteSync" aria-label="关闭">&times;</button>
+    </div>
+    <div class="modal__body">
+      <p class="sync-hint">粘贴从另一台设备复制的同步码，并确保已设置<strong>相同的同步密钥</strong>。</p>
+      <label class="form-field">
+        <span>同步码</span>
+        <textarea id="pasteSyncInput" rows="6" placeholder="RT1:..." spellcheck="false"></textarea>
+      </label>
+    </div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--ghost" id="btnCancelPasteSync">取消</button>
+      <button type="button" class="btn btn--primary" id="btnConfirmPasteSync">导入并合并</button>
+    </div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/pwa.js"></script>
   <script src="js/app.js"></script>
 </body>

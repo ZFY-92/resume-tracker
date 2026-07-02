@@ -62,8 +62,13 @@ function loadData() {
   }
 }
 
-function saveData() {
+function saveDataLocal() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(applications));
+}
+
+function saveData() {
+  saveDataLocal();
+  if (window.ResumeSync?.schedulePush) window.ResumeSync.schedulePush();
 }
 
 function saveReminderSent() {
@@ -632,6 +637,7 @@ function renderSettingsPage() {
   if (versionEl) versionEl.textContent = window.APP_VERSION || 'v8';
   updateNotifyButton();
   updateThemeButton(document.documentElement.getAttribute('data-theme') || 'light');
+  if (window.ResumeSync?.updateSettingsUI) window.ResumeSync.updateSettingsUI();
 }
 
 function render() {
@@ -1281,6 +1287,32 @@ function init() {
   populateStatusSelect();
   loadData();
   bindEvents();
+
+  if (window.ResumeSync) {
+    window.ResumeSync.init({
+      getData: () => ({
+        applications: JSON.parse(JSON.stringify(applications)),
+        reminderSentIds: [...reminderSentIds],
+      }),
+      applyData: (data) => {
+        applications = (data.applications || []).map((app) => ({
+          ...app,
+          status: app.status || 'applied',
+        }));
+        reminderSentIds = new Set(data.reminderSentIds || []);
+        saveDataLocal();
+        saveReminderSent();
+        render();
+      },
+      onStatusChange: () => {
+        if (currentPage === 'settings') renderSettingsPage();
+      },
+    });
+    window.ResumeSync.syncOnLaunch().then((result) => {
+      if (result?.changed) render();
+    });
+  }
+
   initRouter();
   startReminderChecker();
 }

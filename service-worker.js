@@ -1,9 +1,11 @@
-const CACHE_NAME = 'resume-tracker-v9';
+const CACHE_NAME = 'resume-tracker-v12';
 const ASSETS = [
   './index.html',
   './css/style.css',
   './js/app.js',
   './js/pwa.js',
+  './js/sync.js',
+  './js/supabase-config.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
